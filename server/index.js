@@ -349,7 +349,48 @@ app.get('/api/export-excel', async (req, res) => {
         res.status(500).json({ error: 'Error generating Excel file', details: error.message });
     }
 });
+app.get('/api/meli-auth', (req, res) => {
+    const appId = process.env.MELI_APP_ID;
+    const redirectUri = 'https://dashboard-ingrill-unificado.vercel.app/api/meli-callback';
+    const authUrl = `https://auth.mercadolibre.cl/authorization?response_type=code&client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+    res.redirect(authUrl);
+});
 
+app.get('/api/meli-callback', async (req, res) => {
+    const { code } = req.query;
+    if (!code) return res.status(400).send('No se recibió código de autorización');
+    try {
+        const body = new URLSearchParams();
+        body.append('grant_type', 'authorization_code');
+        body.append('client_id', process.env.MELI_APP_ID);
+        body.append('client_secret', process.env.MELI_APP_SECRET);
+        body.append('code', code);
+        body.append('redirect_uri', 'https://dashboard-ingrill-unificado.vercel.app/api/meli-callback');
+        const axios = require('axios');
+        const response = await axios.post('https://api.mercadolibre.com/oauth/token', body, {
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+        });
+        const { createClient } = require('@supabase/supabase-js');
+        const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY);
+        const { error } = await supabase
+            .from('meli_tokens')
+            .update({
+                access_token: response.data.access_token,
+                refresh_token: response.data.refresh_token,
+                expires_at: new Date(Date.now() + (response.data.expires_in || 21600) * 1000).toISOString(),
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', 'main');
+        if (error) {
+            console.error('Error guardando tokens ML:', error.message);
+            return res.status(500).send('Error guardando tokens: ' + error.message);
+        }
+        res.send('<h2>✅ Mercado Libre conectado exitosamente</h2><p>Los tokens fueron guardados. Ya puedes cerrar esta ventana.</p>');
+    } catch (err) {
+        console.error('ML OAuth error:', err.response?.data || err.message);
+        res.status(500).send('Error en OAuth: ' + JSON.stringify(err.response?.data || err.message));
+    }
+});
 if (require.main === module) {
     app.listen(PORT, () => {
         console.log(`Unified Dashboard Server running on port ${PORT}`);
