@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:4001/api';
+const API_BASE = '/api';
 let trendChart = null;
 let donutChart = null;
 let originChart = null;
@@ -453,23 +453,25 @@ async function downloadExcel() {
     const startDate = document.getElementById('date-start').value;
     const endDate = document.getElementById('date-end').value;
 
-    const url = new URL(`${API_BASE}/export-excel`);
+    const url = new URL(`${API_BASE}/export-excel`, window.location.origin);
     if (source) url.searchParams.append('source', source);
     if (startDate) url.searchParams.append('startDate', startDate);
     if (endDate) url.searchParams.append('endDate', endDate);
 
     try {
         const res = await fetch(url);
-        const data = await res.json();
-        if (data.success && data.filePath) {
-            console.log('Archivo guardado en:', data.filePath);
-            showExcelToast(data.fileName, data.filePath);
-        } else {
-            alert('Error al generar el archivo de exportación');
-        }
+        if (!res.ok) throw new Error('Error en servidor');
+        const blob = await res.blob();
+        const fileName = `ventas_unified_${new Date().toISOString().slice(0,10)}.xlsx`;
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
     } catch (err) {
         console.error('Error en descarga:', err);
-        alert('Error de conexión con el servidor');
+        alert('Error al generar el archivo Excel');
     }
 }
 
