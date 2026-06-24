@@ -1,12 +1,10 @@
 {
   "version": 2,
+  "installCommand": "cd server && npm install",
   "builds": [
     {
       "src": "server/index.js",
-      "use": "@vercel/node",
-      "config": {
-        "includeFiles": ["server/**"]
-      }
+      "use": "@vercel/node"
     },
     {
       "src": "client/**",
