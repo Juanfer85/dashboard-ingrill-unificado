@@ -17,9 +17,7 @@ const { getRipleyOrders } = require('./ripleyConnector');
 const app = express();
 const PORT = process.env.UNIFIED_BACKEND_PORT || 4001;
 console.log('=== SERVER STARTING VERSION v1.3.0 ===');
-console.log('Current __dirname:', __dirname);
 
-// HTTP Basic Auth
 app.use((req, res, next) => {
     const user = process.env.DASHBOARD_USER;
     const pass = process.env.DASHBOARD_PASS;
@@ -39,8 +37,8 @@ app.use((req, res, next) => {
 });
 
 app.get('/api/health', (req, res) => {
-    res.json({ 
-        status: 'ok', 
+    res.json({
+        status: 'ok',
         version: 'v1.3.0',
         env: {
             supabase_url: !!process.env.SUPABASE_URL,
@@ -235,20 +233,17 @@ async function fetchFilteredOrders(rawStartDate, rawEndDate, source = 'all') {
     const results = { shopify: [], meli: [], ripley: [] };
     if (source === 'all' || source === 'shopify') {
         const queryStr = `status:any AND created_at:>=${start.toISOString()} AND created_at:<=${end.toISOString()}`;
-        console.log(`--- CALLING getAllOrders (Shopify) Recursive with query: ${queryStr}`);
         promises.push(getAllOrders(queryStr).then(data => { results.shopify = data.orders.edges.map(e => normalizeShopifyOrder(e.node)); return results.shopify; }).catch(err => { console.error('Shopify fetching failed:', err.message); return []; }));
     }
     if (source === 'all' || source === 'meli') {
         const mFrom = start.toISOString();
         const mTo = end.toISOString();
-        console.log('--- CALLING getMeliOrders with:', mFrom, mTo);
         promises.push(getMeliOrders(mFrom, mTo).then(orders => { results.meli = orders.map(normalizeMeliOrder); return results.meli; }).catch(err => { console.error('Mercado Libre fetching failed:', err.message); return []; }));
     }
     if (source === 'all' || source === 'ripley') {
         promises.push(getRipleyOrders(start.toISOString(), end.toISOString()).then(orders => { results.ripley = orders.map(normalizeRipleyOrder); return results.ripley; }).catch(err => { console.error('Ripley fetching failed:', err.message); return []; }));
     }
     await Promise.all(promises);
-    console.log(`Fetched lists: Shopify=${results.shopify.length}, Meli=${results.meli.length}, Ripley=${results.ripley.length}`);
     const allOrders = [...results.shopify, ...results.meli, ...results.ripley].filter(Boolean);
     const filteredOrders = allOrders.filter(o => {
         const orderDate = dayjs(o.createdAt).tz(SHOP_TZ);
@@ -265,15 +260,13 @@ async function fetchFilteredOrders(rawStartDate, rawEndDate, source = 'all') {
 
 app.get('/api/dashboard', async (req, res) => {
     const { startDate, endDate, source = 'all' } = req.query;
-    console.log(`\nIncoming Unified Request: source=${source}, start=${startDate}, end=${endDate}`);
     try {
         const initialDateStr = '2026-01-01';
         const todayStr = dayjs().tz(SHOP_TZ).format('YYYY-MM-DD');
         const defaultStart = dayjs().tz(SHOP_TZ).startOf('month').format('YYYY-MM-DD');
         const qStart = (startDate && startDate !== 'undefined' && startDate !== '') ? startDate : defaultStart;
         const qEnd = (endDate && endDate !== 'undefined' && endDate !== '') ? endDate : todayStr;
-        const fetchEnd = qEnd;
-        const allOrders = await fetchFilteredOrders(initialDateStr, fetchEnd, source);
+        const allOrders = await fetchFilteredOrders(initialDateStr, qEnd, source);
         const start = dayjs.tz(qStart + ' 00:00:00', SHOP_TZ);
         const end = dayjs.tz(qEnd + ' 23:59:59', SHOP_TZ);
         const filteredOrders = allOrders.filter(o => {
@@ -295,7 +288,7 @@ app.get('/api/dashboard', async (req, res) => {
         const topProducts = Object.values(productMap).map(p => ({ ...p, sources: Array.from(p.sources) })).sort((a, b) => b.revenue - a.revenue).slice(0, 10);
         const monthlyData = {};
         const trendStart = dayjs.tz('2026-01-01 00:00:00', SHOP_TZ);
-        const trendEnd = dayjs.tz(fetchEnd + ' 23:59:59', SHOP_TZ);
+        const trendEnd = dayjs.tz(qEnd + ' 23:59:59', SHOP_TZ);
         let tempDate = trendStart.clone().startOf('month');
         const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
         while (tempDate.isBefore(trendEnd) || tempDate.isSame(trendEnd, 'month')) {
@@ -313,14 +306,13 @@ app.get('/api/dashboard', async (req, res) => {
         const monthlyTrend = Object.values(monthlyData);
         res.json({ version: "v1.3.0", metrics: { totalRevenue, totalOrders, aov, currency: 'CLP' }, recentOrders: filteredOrders.sort((a, b) => dayjs(b.createdAt).diff(dayjs(a.createdAt))), topProducts, monthlyTrend });
     } catch (error) {
-        console.error('API Error details:', { message: error.message, stack: error.stack, params: { source, startDate, endDate } });
-        res.status(500).json({ error: 'Failed to aggregate multi-channel data', details: error.message, stack: error.stack });
+        console.error('API Error:', error.message);
+        res.status(500).json({ error: 'Failed to aggregate data', details: error.message });
     }
 });
 
 app.get('/api/export-excel', async (req, res) => {
     const { startDate, endDate, source = 'all' } = req.query;
-    console.log(`\nExport Excel Request: source=${source}, start=${startDate}, end=${endDate}`);
     try {
         const filteredOrders = await fetchFilteredOrders(startDate, endDate, source);
         const displayRows = [];
@@ -332,3 +324,35 @@ app.get('/api/export-excel', async (req, res) => {
                 });
             } else {
                 displayRows.push({ 'Fecha': formattedDate, 'Orden': (o.id || '').toString(), 'Canal': (o.source || '').toString(), 'Cliente': (o.customer || '').toString(), 'Producto': 'N/A', 'Unidades': 0, 'Monto Total': 0, 'SKU': 'N/A', 'SKU EAN': 'N/A' });
+            }
+        });
+        const worksheet = XLSX.utils.json_to_sheet(displayRows);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Detalle de Ventas");
+        const maxLens = {};
+        displayRows.forEach(row => {
+            Object.keys(row).forEach(key => {
+                const len = row[key] ? row[key].toString().length : 0;
+                maxLens[key] = Math.max(maxLens[key] || key.length, len);
+            });
+        });
+        worksheet['!cols'] = Object.keys(maxLens).map(key => ({ wch: Math.min(maxLens[key] + 3, 50) }));
+        const dateStr = dayjs().format('YYYY-MM-DD');
+        const timeStr = dayjs().format('HHmmss');
+        const fileName = `ventas_unified_${dateStr}_${timeStr}.xlsx`;
+        const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.send(buffer);
+    } catch (error) {
+        console.error('Excel Export Error:', error);
+        res.status(500).json({ error: 'Error generating Excel file', details: error.message });
+    }
+});
+
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`Unified Dashboard Server running on port ${PORT}`);
+    });
+}
+module.exports = app;
