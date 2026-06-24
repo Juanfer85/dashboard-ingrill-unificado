@@ -13,7 +13,6 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') });
 const { getOrders, getAllOrders, getProducts, getCustomers } = require('./shopifyConnector');
 const { getMeliOrders } = require('./meliConnector');
 const { getRipleyOrders } = require('./ripleyConnector');
-const { startBot } = require('./telegramBot');
 
 const app = express();
 const PORT = process.env.UNIFIED_BACKEND_PORT || 4001;
