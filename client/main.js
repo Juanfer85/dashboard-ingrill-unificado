@@ -65,7 +65,7 @@ async function fetchData() {
     loading.style.display = 'flex';
 
     try {
-        const url = new URL(`${API_BASE}/dashboard`);
+        const url = new URL(`${API_BASE}/dashboard`, window.location.origin);
         if (source) url.searchParams.append('source', source);
         if (startDate) url.searchParams.append('startDate', startDate);
         if (endDate) url.searchParams.append('endDate', endDate);
