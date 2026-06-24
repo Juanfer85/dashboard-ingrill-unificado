@@ -38,6 +38,19 @@ app.use((req, res, next) => {
     next();
 });
 
+app.get('/api/health', (req, res) => {
+    res.json({ 
+        status: 'ok', 
+        version: 'v1.3.0',
+        env: {
+            supabase_url: !!process.env.SUPABASE_URL,
+            supabase_key: !!process.env.SUPABASE_SECRET_KEY,
+            meli_app_id: !!process.env.MELI_APP_ID,
+            dashboard_user: !!process.env.DASHBOARD_USER
+        }
+    });
+});
+
 app.use(cors());
 app.use(express.json());
 
