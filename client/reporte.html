@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tablero Unificado Multi-Canal</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #f97316;
+            --primary-glow: rgba(249, 115, 22, 0.2);
+            --bg-dark: #0a0a0a;
+            --card-bg: #141414;
+            --text-primary: #ffffff;
+            --text-secondary: #a1a1aa;
+            --border: #27272a;
+            --accent: #fb923c;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 1.5rem;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .header-title h1 {
+            font-size: 1.75rem;
+            font-weight: 800;
+            letter-spacing: -0.025em;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .date-picker {
+            display: flex;
+            align-items: center;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 0.75rem;
+            padding: 0.25rem 0.75rem;
+            gap: 0.5rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .date-picker span { color: var(--text-secondary); }
+
+        input[type="date"] {
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            font-size: 0.8rem;
+            font-weight: 700;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .btn-icon {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 0.6rem;
+            border-radius: 0.75rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #18181b;
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 0.6rem 1.25rem;
+            border-radius: 0.75rem;
+            font-weight: 600;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary:hover { background: #27272a; }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.25rem;
+            margin-bottom: 2rem;
+        }
+
+        .metric-card {
+            background: var(--card-bg);
+            padding: 1.5rem;
+            border-radius: 1.25rem;
+            border: 1px solid var(--border);
+        }
+
+        .metric-label {
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 800;
+            letter-spacing: -0.025em;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1.8fr 1fr;
+            gap: 1.25rem;
+            margin-bottom: 2rem;
+        }
+
+        .chart-card {
+            background: var(--card-bg);
+            padding: 1.75rem;
+            border-radius: 1.5rem;
+            border: 1px solid var(--border);
+            height: 400px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chart-header {
+            margin-bottom: 1.5rem;
+        }
+
+        .chart-header h2 {
+            font-size: 1.125rem;
+            font-weight: 700;
+        }
+
+        .lists-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.25rem;
+        }
+
+        .list-card {
+            background: var(--card-bg);
+            padding: 1.75rem;
+            border-radius: 1.5rem;
+            border: 1px solid var(--border);
+        }
+
+        .list-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 2rem;
+        }
+
+        .list-header h3 {
+            font-size: 1rem;
+            font-weight: 700;
+        }
+
+        .list-header i {
+            color: var(--primary);
+            width: 18px;
+            height: 18px;
+        }
+
+        .list-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 0;
+            border-bottom: 1px solid #1f1f23;
+        }
+
+        .list-item:last-child { border-bottom: none; }
+
+        .item-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .item-rank {
+            width: 24px;
+            height: 24px;
+            background: #27272a;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .item-details h4 {
+            font-size: 0.9rem;
+            font-weight: 700;
+            margin-bottom: 0.125rem;
+        }
+
+        .item-details p {
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .item-stat {
+            font-weight: 800;
+            font-size: 1rem;
+        }
+
+        .item-stat.revenue { color: var(--primary); }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(249, 115, 22, 0.1);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        #source-select {
+            margin-right: 1rem;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            font-weight: 600;
+            border-radius: 0.75rem;
+            padding: 0.5rem 1rem;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="loading-overlay" id="loading">
+        <div class="spinner"></div>
+    </div>
+
+    <div class="container">
+        <header>
+            <div class="header-title">
+                <h1>Reporte de Ventas</h1>
+            </div>
+            <div class="header-controls">
+                <select id="source-select">
+                    <option value="all">🌐 Todos los Canales</option>
+                    <option value="shopify">🛍️ Shopify Store</option>
+                    <option value="meli">🏷️ Mercado Libre</option>
+                </select>
+                <div class="date-picker">
+                    <span>Desde:</span>
+                    <input type="date" id="date-start">
+                    <span>Hasta:</span>
+                    <input type="date" id="date-end">
+                </div>
+                <button class="btn-icon">
+                    <i data-lucide="sun"></i>
+                </button>
+                <button id="refresh-btn" class="btn-primary">
+                    <i data-lucide="refresh-cw"></i>
+                    Sincronizar Datos
+                </button>
+            </div>
+        </header>
+
+        <div class="metric-grid">
+            <div class="metric-card">
+                <div class="metric-label"><i data-lucide="dollar-sign"></i> Ingreso Total</div>
+                <div class="metric-value" id="total-revenue">$0</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label"><i data-lucide="shopping-cart"></i> Pedidos Totales</div>
+                <div class="metric-value" id="total-orders">0</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label"><i data-lucide="trending-up"></i> Ticket Promedio</div>
+                <div class="metric-value" id="avg-order-value">$0</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label"><i data-lucide="users"></i> Clientes Recurrentes</div>
+                <div class="metric-value" id="recurring-customers">0</div>
+            </div>
+        </div>
+
+        <div class="charts-grid">
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h2>Tendencia Mensual</h2>
+                </div>
+                <div style="flex: 1; min-height: 0;">
+                    <canvas id="sales-trend-chart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h2>Top Productos</h2>
+                </div>
+                <div style="flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center;">
+                    <canvas id="top-products-donut"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="lists-grid">
+            <div class="list-card">
+                <div class="list-header">
+                    <i data-lucide="award"></i>
+                    <h3>Top 5 — Más vendidos (Unidades)</h3>
+                </div>
+                <div id="top-units-list">
+                    <!-- Loaded via JS -->
+                </div>
+            </div>
+            <div class="list-card">
+                <div class="list-header">
+                    <i data-lucide="trending-up"></i>
+                    <h3>Top 5 — Mayor facturación (CLP)</h3>
+                </div>
+                <div id="top-revenue-list">
+                    <!-- Loaded via JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <script src="reporte.js"></script>
+</body>
+</html>
