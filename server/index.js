@@ -622,7 +622,11 @@ app.get('/api/open-file', (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
-    console.log(`Unified Dashboard Server running on port ${PORT}`);
-});
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`Unified Dashboard Server running on port ${PORT}`);
+    });
+}
+module.exports = app;
+
 
