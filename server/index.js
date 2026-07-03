@@ -700,7 +700,8 @@ app.get('/api/meli-shipments', async (req, res) => {
                             shipping: {
                                 id: shipmentId,
                                 status: status || null,
-                                substatus: substatus || null
+                                substatus: substatus || null,
+                                logisticType: shipmentData.logistic_type || null
                             }
                         });
                     }
