@@ -12,6 +12,36 @@ app.use((req, res, next) => {
     next();
 });
 
+app.use('/api', (req, res) => {
+    const http = require('http');
+    const targetUrl = new URL(`http://localhost:4001/api${req.url}`);
+    
+    const options = {
+        hostname: targetUrl.hostname,
+        port: targetUrl.port,
+        path: targetUrl.pathname + targetUrl.search,
+        method: req.method,
+        headers: {
+            ...req.headers,
+            host: targetUrl.host
+        }
+    };
+
+    const proxyReq = http.request(options, (proxyRes) => {
+        res.writeHead(proxyRes.statusCode, proxyRes.headers);
+        proxyRes.pipe(res, { end: true });
+    });
+
+    proxyReq.on('error', (err) => {
+        console.error('[Proxy Request Error]:', err.message);
+        if (!res.headersSent) {
+            res.status(500).send('Proxy Error: ' + err.message);
+        }
+    });
+
+    req.pipe(proxyReq, { end: true });
+});
+
 app.use(express.static(__dirname, { etag: false, maxAge: 0 }));
 
 app.get('*', (req, res) => {
