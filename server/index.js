@@ -11,7 +11,7 @@ const SHOP_TZ = 'America/Santiago';
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const { getOrders, getAllOrders, getProducts, getAllProductsWithInventory, getCustomers } = require('./shopifyConnector');
-const { getMeliOrders, getMeliInventory, getMeliLabel } = require('./meliConnector');
+const { getMeliOrders, getMeliInventory, getMeliLabel, meliRequest } = require('./meliConnector');
 const { getRipleyOrders, getRipleyInventory } = require('./ripleyConnector');
 const { getSodimacOrders, getSodimacInventory } = require('./sodimacConnector');
 const { startBot } = require('./telegramBot');
@@ -663,31 +663,55 @@ app.get('/api/meli/shipments/:shipmentId/label', async (req, res) => {
 
 app.get('/api/meli-shipments', async (req, res) => {
     try {
-        const startDate = dayjs().tz(SHOP_TZ).subtract(60, 'day').format('YYYY-MM-DD');
+        const startDate = dayjs().tz(SHOP_TZ).subtract(30, 'day').format('YYYY-MM-DD');
         const endDate = dayjs().tz(SHOP_TZ).format('YYYY-MM-DD');
 
         const meliOrders = await fetchFilteredOrders(startDate, endDate, 'meli');
 
-        const activeShipments = meliOrders
-            .filter(o => o.shipping?.id && o.shipping?.status !== 'delivered' && o.shipping?.status !== 'cancelled')
-            .map(o => ({
-                id: o.id,
-                createdAt: o.createdAt,
-                customer: o.customer,
-                items: o.items.map(item => ({
-                    title: item.title,
-                    sku: item.sku,
-                    ean: item.ean,
-                    quantity: item.quantity,
-                    price: item.price
-                })),
-                totalPrice: o.totalPrice,
-                shipping: {
-                    id: o.shipping?.id || null,
-                    status: o.shipping?.status || null,
-                    substatus: o.shipping?.substatus || null
+        // Filter and sort by newest first
+        const ordersWithShipping = meliOrders.filter(o => o.shipping?.id);
+        ordersWithShipping.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+        // Limit to max 20 to avoid rate limits
+        const targetOrders = ordersWithShipping.slice(0, 20);
+
+        const activeShipments = [];
+        await Promise.all(targetOrders.map(async (o) => {
+            try {
+                const shipmentId = o.shipping.id;
+                const shipmentData = await meliRequest('GET', `/shipments/${shipmentId}`);
+                if (shipmentData) {
+                    const status = shipmentData.status;
+                    const substatus = shipmentData.substatus;
+
+                    if (status !== 'delivered' && status !== 'cancelled') {
+                        activeShipments.push({
+                            id: o.id,
+                            createdAt: o.createdAt,
+                            customer: o.customer,
+                            items: o.items.map(item => ({
+                                title: item.title,
+                                sku: item.sku,
+                                ean: item.ean,
+                                quantity: item.quantity,
+                                price: item.price
+                            })),
+                            totalPrice: o.totalPrice,
+                            shipping: {
+                                id: shipmentId,
+                                status: status || null,
+                                substatus: substatus || null
+                            }
+                        });
+                    }
                 }
-            }));
+            } catch (err) {
+                console.error(`Error fetching shipment details for ${o.id}:`, err.message);
+            }
+        }));
+
+        // Sort newest first
+        activeShipments.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
         res.json({
             success: true,
