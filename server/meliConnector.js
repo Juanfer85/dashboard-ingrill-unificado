@@ -1,67 +1,86 @@
 const axios = require('axios');
-const fs = require('fs');
-const path = require('path');
+const { createClient } = require('@supabase/supabase-js');
 
-// Removed top-level process.env extraction to ensure latest values after dotenv load
+function getSupabaseClient() {
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SECRET_KEY;
+    if (!url || !key) {
+        console.error('CRITICAL: SUPABASE_URL o SUPABASE_SECRET_KEY no definidos');
+        return null;
+    }
+    return createClient(url, key);
+}
 
-// Helper to read tokens from the common file
-function readTokens() {
+async function readTokens() {
     try {
-        const tokenPath = process.env.MELI_TOKENS_PATH;
-        if (!tokenPath) {
-            console.error('CRITICAL: MELI_TOKENS_PATH is UNDEFINED in process.env');
+        const supabase = getSupabaseClient();
+        if (!supabase) return null;
+        const { data, error } = await supabase
+            .from('meli_tokens')
+            .select('*')
+            .eq('id', 'main')
+            .single();
+        if (error) {
+            console.error('Error leyendo tokens de Supabase:', error.message);
             return null;
         }
-        const data = fs.readFileSync(tokenPath, 'utf8');
-        const parsed = JSON.parse(data);
-        return parsed.default || parsed;
+        return data;
     } catch (err) {
-        console.error('Error reading MELI tokens from ' + process.env.MELI_TOKENS_PATH + ':', err.message);
+        console.error('Error en readTokens:', err.message);
         return null;
     }
 }
 
-// Helper to save tokens back (in case of refresh)
-function saveTokens(tokenData) {
+async function saveTokens(tokenData) {
     try {
-        const fullData = { default: { ...tokenData, obtained_at: Date.now() } };
-        fs.writeFileSync(process.env.MELI_TOKENS_PATH, JSON.stringify(fullData, null, 2));
+        const supabase = getSupabaseClient();
+        if (!supabase) return;
+        const { error } = await supabase
+            .from('meli_tokens')
+            .update({
+                access_token: tokenData.access_token,
+                refresh_token: tokenData.refresh_token,
+                expires_at: new Date(Date.now() + (tokenData.expires_in || 21600) * 1000).toISOString(),
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', 'main');
+        if (error) {
+            console.error('Error guardando tokens en Supabase:', error.message);
+        } else {
+            console.log('Tokens ML guardados en Supabase correctamente');
+        }
     } catch (err) {
-        console.error('Error saving MELI tokens:', err.message);
+        console.error('Error en saveTokens:', err.message);
     }
 }
 
 async function refreshMeliToken() {
-    const tokens = readTokens();
+    const tokens = await readTokens();
     if (!tokens || !tokens.refresh_token) {
+        console.error('No hay refresh_token disponible en Supabase');
         return null;
     }
-
     try {
         const body = new URLSearchParams();
         body.append('grant_type', 'refresh_token');
         body.append('client_id', process.env.MELI_APP_ID);
         body.append('client_secret', process.env.MELI_APP_SECRET);
         body.append('refresh_token', tokens.refresh_token);
-
         const response = await axios.post('https://api.mercadolibre.com/oauth/token', body, {
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
         });
-
         const newTokens = response.data;
-        const decorated = { ...newTokens, obtained_at: Date.now() };
-        saveTokens(decorated);
-        return decorated.access_token;
+        await saveTokens(newTokens);
+        return newTokens.access_token;
     } catch (err) {
-        console.error('Failed to refresh MELI token:', err.response?.data || err.message);
+        console.error('Error al refrescar token ML:', err.response?.data || err.message);
         return null;
     }
 }
 
 async function meliRequest(method, url, params = {}, data = null, customConfig = {}) {
-    const tokens = readTokens();
+    const tokens = await readTokens();
     if (!tokens) return null;
-
     const execute = async (token) => {
         return axios({
             method,
@@ -72,12 +91,12 @@ async function meliRequest(method, url, params = {}, data = null, customConfig =
             ...customConfig
         });
     };
-
     try {
         const response = await execute(tokens.access_token);
         return response.data;
     } catch (err) {
         if (err.response?.status === 401) {
+            console.log('Token ML expirado, refrescando...');
             const newToken = await refreshMeliToken();
             if (newToken) {
                 const retry = await execute(newToken);
@@ -106,23 +125,17 @@ async function getMeliLabel(shipmentId) {
 
 async function getMeliOrders(from, to) {
     try {
-        const tokens = readTokens();
+        const tokens = await readTokens();
         if (!tokens) return [];
-
         const me = await meliRequest('GET', '/users/me').catch(() => null);
         if (!me) return [];
         const sellerId = me.id;
-
         const fromDate = from.includes('T') ? from : `${from}T00:00:00.000-05:00`;
         const toDate = to.includes('T') ? to : `${to}T23:59:59.999-05:00`;
-
         let allOrders = [];
         let hasMore = true;
         let offset = 0;
         const limit = 40;
-
-        console.log(`--- Iniciando descarga recursiva Meli (rango: ${fromDate} a ${toDate}) ---`);
-
         while (hasMore) {
             const response = await meliRequest('GET', '/orders/search', {
                 seller: sellerId,
@@ -135,16 +148,11 @@ async function getMeliOrders(from, to) {
                 console.error('MELI /orders/search failed:', err.response?.data || err.message);
                 return null;
             });
-
             if (!response || !response.results) break;
-
             allOrders = allOrders.concat(response.results);
-            console.log(`   > Descargados ${response.results.length} pedidos. Acumulado: ${allOrders.length}`);
-
             offset += limit;
-            hasMore = (response.paging.total > offset) && (allOrders.length < 2000); 
+            hasMore = (response.paging.total > offset) && (allOrders.length < 2000);
         }
-
         return allOrders;
     } catch (err) {
         console.error('MELI getOrders error:', err.message);
