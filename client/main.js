@@ -102,6 +102,18 @@ function initializeFilters() {
     flatpickr("#date-end", { ...fpConfig, defaultDate: now });
 }
 
+async function fetchMeliShipments() {
+    try {
+        const res = await fetch(`${API_BASE}/meli-shipments`);
+        const data = await res.json();
+        if (data && data.success) {
+            renderMeliShipments(data.shipments);
+        }
+    } catch (err) {
+        console.error('Error fetching Meli shipments:', err);
+    }
+}
+
 async function fetchData() {
     const loading = document.getElementById('loading');
     const source = document.getElementById('source-select').value;
@@ -121,6 +133,7 @@ async function fetchData() {
         console.log('API Response:', data);
 
         updateDashboard(data);
+        await fetchMeliShipments();
     } catch (err) {
         console.error('Fetch Error:', err);
         alert('Error al obtener datos unificados');
@@ -168,7 +181,6 @@ function updateDashboard(data) {
     updateCharts(data);
     
     updateBarrelAnalysis();
-    renderMeliShipments(recentOrders);
 }
 
 function renderUnitsList(products) {
@@ -856,18 +868,12 @@ function formatMeliDate(dateStr) {
     return `${day} ${month} ${hours}:${minutes}`;
 }
 
-function renderMeliShipments(orders) {
+function renderMeliShipments(shipments) {
     const grid = document.getElementById('meli-shipments-grid');
     const countEl = document.getElementById('meli-shipments-count');
     if (!grid) return;
 
-    // Filter Meli orders that have active shipment status (i.e. not delivered, not cancelled)
-    const activeMeli = orders.filter(o => 
-        o.source === 'Mercado Libre' && 
-        o.shipping?.id && 
-        o.shipping?.status !== 'delivered' && 
-        o.shipping?.status !== 'cancelled'
-    );
+    const activeMeli = shipments || [];
 
     // Sort newest first
     activeMeli.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
