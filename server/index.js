@@ -659,6 +659,43 @@ app.get('/api/meli/shipments/:shipmentId/label', async (req, res) => {
     }
 });
 
+app.get('/api/meli-shipments', async (req, res) => {
+    try {
+        const startDate = dayjs().tz(SHOP_TZ).subtract(60, 'day').format('YYYY-MM-DD');
+        const endDate = dayjs().tz(SHOP_TZ).format('YYYY-MM-DD');
+
+        const meliOrders = await fetchFilteredOrders(startDate, endDate, 'meli');
+
+        const activeShipments = meliOrders
+            .filter(o => o.shippingId && o.shippingStatus !== 'delivered' && o.shippingStatus !== 'cancelled')
+            .map(o => ({
+                id: o.id,
+                createdAt: o.createdAt,
+                customer: o.customer,
+                items: o.items.map(item => ({
+                    title: item.title,
+                    sku: item.sku,
+                    ean: item.ean,
+                    quantity: item.quantity,
+                    price: item.price
+                })),
+                totalPrice: o.totalPrice,
+                shippingId: o.shippingId,
+                shippingStatus: o.shippingStatus,
+                shippingSubstatus: o.shippingSubstatus
+            }));
+
+        res.json({
+            success: true,
+            count: activeShipments.length,
+            shipments: activeShipments
+        });
+    } catch (error) {
+        console.error('Error fetching Meli shipments:', error);
+        res.status(500).json({ error: 'Failed to fetch Meli shipments', details: error.message });
+    }
+});
+
 app.get('/api/export-excel', async (req, res) => {
     const { startDate, endDate, source = 'all' } = req.query;
     try {
