@@ -26,6 +26,12 @@
             --accent: #fb923c;
             --btn-bg: #18181b;
             --btn-text: #ffffff;
+            --stock-shopify: #96bf48;
+            --stock-meli: #facc15;
+            --stock-meli-full: #fef08a;
+            --stock-ripley: #8b5dbc;
+            --stock-ripley-full: #a78bfa;
+            --stock-sodimac: #00875a;
         }
 
         body[data-theme="light"] {
@@ -37,6 +43,12 @@
             --primary-glow: rgba(249, 115, 22, 0.1);
             --btn-bg: var(--primary);
             --btn-text: #ffffff;
+            --stock-shopify: #15803d;
+            --stock-meli: #b45309;
+            --stock-meli-full: #854d0e;
+            --stock-ripley: #6d28d9;
+            --stock-ripley-full: #7c3aed;
+            --stock-sodimac: #006644;
         }
 
         * {
@@ -152,6 +164,10 @@
             grid-template-columns: repeat(4, 1fr);
             gap: 1.25rem;
             margin-bottom: 2rem;
+        }
+
+        .metric-grid.grid-5 {
+            grid-template-columns: repeat(5, 1fr);
         }
 
         .metric-card {
@@ -513,14 +529,132 @@
 
         .channel-tag.shopify { color: #95bf47; }
         .channel-tag.meli { color: #ffdb00; }
-        .channel-tag.ripley { color: #f97316; }
+        .channel-tag.ripley { color: #8b5dbc; }
+        .channel-tag.sodimac { color: #00875a; }
 
         .channel-tag span {
             opacity: 0.8;
             font-weight: 500;
         }
 
-
+        /* TABS INVENTARIO */
+        .tabs-nav {
+            display: flex;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+        }
+        .btn-tab {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 0.5rem;
+            transition: all 0.2s;
+            border-bottom: 3px solid transparent;
+        }
+        .btn-tab:hover {
+            color: var(--text-primary);
+        }
+        .btn-tab.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .shipments-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1.25rem;
+            margin-top: 1rem;
+        }
+        .shipment-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            position: relative;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .shipment-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+            border-color: rgba(255, 230, 0, 0.3);
+        }
+        .shipment-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+        }
+        .shipment-detail {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+        .shipment-detail strong {
+            color: var(--text-primary);
+        }
+        .shipment-footer {
+            margin-top: auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-top: 0.5rem;
+            border-top: 1px dashed var(--border);
+        }
+        .label-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 0.25rem 0.6rem;
+            border-radius: 2rem;
+        }
+        .label-status.printed {
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+        .label-status.pending {
+            background: rgba(245, 158, 11, 0.15);
+            color: #f59e0b;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+        .btn-reprint {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            background: #ffe600;
+            color: #000000;
+            border: none;
+            padding: 0.4rem 0.8rem;
+            border-radius: 0.5rem;
+            font-size: 0.75rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .btn-reprint:hover {
+            opacity: 0.9;
+        }
     </style>
 </head>
 <body>
@@ -539,6 +673,7 @@
                     <option value="shopify">💻 Shopify Web</option>
                     <option value="ripley">📦 Ripley</option>
                     <option value="meli">🏷️ Mercado Libre</option>
+                    <option value="sodimac">🛠️ Sodimac</option>
                 </select>
                 <div class="date-picker">
                     <span>Desde:</span>
@@ -556,7 +691,18 @@
             </div>
         </header>
 
-        <div class="metric-grid">
+        <!-- Navegación de Pestañas -->
+        <div class="tabs-nav">
+            <button class="btn-tab active" id="tab-sales">
+                <i data-lucide="bar-chart-3"></i> Ventas y Facturación
+            </button>
+            <button class="btn-tab" id="tab-inventory">
+                <i data-lucide="package"></i> Control de Inventario
+            </button>
+        </div>
+
+        <div id="sales-tab-content" class="tab-content active">
+            <div class="metric-grid">
             <div class="metric-card">
                 <div class="metric-label"><i data-lucide="dollar-sign"></i> Ingreso Total</div>
                 <div class="metric-value" id="total-revenue">$0</div>
@@ -654,6 +800,19 @@
             </div>
         </div>
 
+        <!-- Envíos Meli en Proceso -->
+        <div class="table-card" id="meli-shipments-section" style="margin-bottom: 1.25rem;">
+            <div class="table-header">
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <h2>📦 Envíos Meli en Proceso</h2>
+                    <span id="meli-shipments-count" style="color: var(--text-secondary); font-size: 0.75rem; font-weight: 600;">0 envíos</span>
+                </div>
+            </div>
+            <div id="meli-shipments-grid" class="shipments-grid">
+                <!-- Cargado dinámicamente vía JS -->
+            </div>
+        </div>
+
         <div class="table-card">
             <div class="table-header">
                 <div style="display: flex; align-items: center; gap: 1rem;">
@@ -685,11 +844,83 @@
                 </table>
             </div>
         </div>
+        </div> <!-- Cierra sales-tab-content -->
+
+        <!-- Pestaña de Inventario -->
+        <div id="inventory-tab-content" class="tab-content">
+            <!-- Grid de Métricas de Stock -->
+            <div class="metric-grid grid-5">
+                <div class="metric-card">
+                    <div class="metric-label"><i data-lucide="package-search"></i> Total SKUs</div>
+                    <div class="metric-value" id="inv-total-products">0</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label"><i data-lucide="shopping-bag"></i> Stock Shopify</div>
+                    <div class="metric-value" id="inv-shopify-stock" style="color: #96bf48;">0</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label"><i data-lucide="tag"></i> Stock Meli</div>
+                    <div class="metric-value" id="inv-meli-stock" style="color: #ffe600;">0</div>
+                    <div id="inv-meli-breakdown" class="channel-breakdown"></div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label"><i data-lucide="box"></i> Stock Ripley</div>
+                    <div class="metric-value" id="inv-ripley-stock" style="color: #8b5dbc;">0</div>
+                    <div id="inv-ripley-breakdown" class="channel-breakdown"></div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label"><i data-lucide="wrench"></i> Stock Sodimac</div>
+                    <div class="metric-value" id="inv-sodimac-stock" style="color: #00875a;">0</div>
+                </div>
+            </div>
+            
+            <!-- Barra de Búsqueda -->
+            <div class="table-card" style="margin-bottom: 1.25rem; padding: 1rem 1.5rem;">
+                <div style="display: flex; gap: 1rem; align-items: center;">
+                    <i data-lucide="search" style="color: var(--text-secondary); width: 20px; height: 20px;"></i>
+                    <input type="text" id="inventory-search" placeholder="Buscar por Nombre de Producto, SKU o Código EAN..." style="background: transparent; border: none; color: var(--text-primary); outline: none; font-size: 0.95rem; font-weight: 600; width: 100%;">
+                </div>
+            </div>
+            
+            <!-- Tabla de Inventario -->
+            <div class="table-card">
+                <div class="table-header">
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <h2>Inventario Consolidado</h2>
+                        <span id="inv-record-count" style="color: var(--text-secondary); font-size: 0.75rem; font-weight: 600;">Cargando inventario...</span>
+                    </div>
+                    <button id="refresh-inventory-btn" class="btn-primary" style="padding: 0.4rem 1rem; font-size: 0.75rem;">
+                        <i data-lucide="refresh-cw"></i> Sincronizar Stock
+                    </button>
+                </div>
+                <div class="table-wrapper" style="max-height: 600px;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 22%">Producto</th>
+                                <th style="width: 10%">SKU</th>
+                                <th style="width: 10%">SKU EAN</th>
+                                <th style="width: 8%; text-align: center;">Shopify</th>
+                                <th style="width: 8%; text-align: center;">Meli</th>
+                                <th style="width: 8%; text-align: center;">Meli Full</th>
+                                <th style="width: 8%; text-align: center;">Ripley</th>
+                                <th style="width: 8%; text-align: center;">Ripley Full</th>
+                                <th style="width: 8%; text-align: center;">Sodimac</th>
+                                <th style="width: 10%; text-align: center;">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventory-list">
+                            <!-- Carga vía JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
 
     </div>
 
-    <script src="main.js?v=4"></script>
+    <script src="main.js?v=8"></script>
 </body>
 </html>
 

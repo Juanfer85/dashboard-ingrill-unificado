@@ -11,9 +11,10 @@ dayjs.extend(timezone);
 const SHOP_TZ = 'America/Santiago';
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
-const { getOrders, getAllOrders, getProducts, getCustomers } = require('./shopifyConnector');
-const { getMeliOrders } = require('./meliConnector');
-const { getRipleyOrders } = require('./ripleyConnector');
+const { getOrders, getAllOrders, getProducts, getAllProductsWithInventory, getCustomers } = require('./shopifyConnector');
+const { getMeliOrders, getMeliInventory, getMeliLabel } = require('./meliConnector');
+const { getRipleyOrders, getRipleyInventory } = require('./ripleyConnector');
+const { getSodimacOrders, getSodimacInventory } = require('./sodimacConnector');
 const { startBot } = require('./telegramBot');
 
 const app = express();
@@ -271,20 +272,33 @@ function normalizeMeliOrder(o) {
         totalUnits,
         sku,
         ean,
-        items
+        items,
+        shippingId: o.shipping?.id || null,
+        shippingStatus: o.shipping?.status || null,
+        shippingSubstatus: o.shipping?.substatus || null
     };
 }
 function normalizeRipleyOrder(o) {
     const customer = o.customer ? `${o.customer.firstname} ${o.customer.lastname}` : 'Invitado Ripley';
-    const totalUnits = (o.order_lines || []).reduce((acc, line) => acc + line.quantity, 0);
+    
+    // Detectar si es el cliente con devolución de dinero solicitada en las fechas específicas (27/05/2026 y 28/06/2026)
+    const isRefunded = (() => {
+        const lowerCustomer = customer.toLowerCase();
+        const isYecsson = lowerCustomer.includes('yecsson') && (lowerCustomer.includes('hernandez') || lowerCustomer.includes('hernández'));
+        if (!isYecsson) return false;
+        const orderDateStr = o.created_date || '';
+        return orderDateStr.startsWith('2026-05-27') || orderDateStr.startsWith('2026-06-28');
+    })();
+
+    const totalUnits = isRefunded ? 0 : (o.order_lines || []).reduce((acc, line) => acc + line.quantity, 0);
 
     const items = (o.order_lines || []).map(line => {
         const normalizedTitle = normalizeProductName(line.product_title);
         const codes = resolveProductCodes(normalizedTitle, line.offer_sku);
         return {
             title: normalizedTitle,
-            quantity: line.quantity,
-            price: parseFloat(line.price_unit),
+            quantity: isRefunded ? 0 : line.quantity,
+            price: isRefunded ? 0 : parseFloat(line.price_unit),
             sku: codes.sku,
             ean: codes.ean
         };
@@ -296,7 +310,7 @@ function normalizeRipleyOrder(o) {
     return {
         id: `RP-${o.order_id}`,
         source: 'Ripley',
-        totalPrice: parseFloat(o.total_price || 0),
+        totalPrice: isRefunded ? 0 : parseFloat(o.total_price || 0),
         createdAt: o.created_date,
         customer,
         currency: 'CLP',
@@ -305,6 +319,45 @@ function normalizeRipleyOrder(o) {
         ean,
         items
     };
+}
+
+function normalizeSodimacOrder(o) {
+    try {
+        const customer = [o.CustomerFirstName, o.CustomerLastName].filter(Boolean).join(' ') || 'Invitado Sodimac';
+        const rawItems = o.OrderItems || [];
+        const totalUnits = rawItems.length;
+
+        const items = rawItems.map(item => {
+            const normalizedTitle = normalizeProductName(item.Name || 'Producto Sodimac');
+            const codes = resolveProductCodes(normalizedTitle, item.Sku);
+            return {
+                title: normalizedTitle,
+                quantity: 1,
+                price: parseFloat(item.PaidPrice || item.ItemPrice || 0),
+                sku: codes.sku,
+                ean: codes.ean
+            };
+        });
+
+        const sku = items[0]?.sku || 'N/A';
+        const ean = items[0]?.ean || 'N/A';
+
+        return {
+            id: `SD-${o.OrderId || o.OrderNumber}`,
+            source: 'Sodimac',
+            totalPrice: parseFloat(o.Price || 0),
+            createdAt: o.CreatedAt,
+            customer,
+            currency: 'CLP',
+            totalUnits,
+            sku,
+            ean,
+            items
+        };
+    } catch (err) {
+        console.error('Error normalizing Sodimac order:', err, o);
+        return null;
+    }
 }
 
 async function fetchFilteredOrders(rawStartDate, rawEndDate, source = 'all') {
@@ -319,7 +372,7 @@ async function fetchFilteredOrders(rawStartDate, rawEndDate, source = 'all') {
     const end = dayjs.tz(endDate, SHOP_TZ).endOf('day');
 
     const promises = [];
-    const results = { shopify: [], meli: [], ripley: [] };
+    const results = { shopify: [], meli: [], ripley: [], sodimac: [] };
     
     if (source === 'all' || source === 'shopify') {
         const queryStr = `status:any AND created_at:>=${start.toISOString()} AND created_at:<=${end.toISOString()}`;
@@ -354,12 +407,21 @@ async function fetchFilteredOrders(rawStartDate, rawEndDate, source = 'all') {
             return [];
         }));
     }
+    if (source === 'all' || source === 'sodimac') {
+        promises.push(getSodimacOrders(start.toISOString(), end.toISOString()).then(orders => {
+            results.sodimac = orders.map(normalizeSodimacOrder);
+            return results.sodimac;
+        }).catch(err => {
+            console.error('Sodimac fetching failed:', err.message);
+            return [];
+        }));
+    }
 
     await Promise.all(promises);
     
-    console.log(`Fetched lists: Shopify=${results.shopify.length}, Meli=${results.meli.length}, Ripley=${results.ripley.length}`);
+    console.log(`Fetched lists: Shopify=${results.shopify.length}, Meli=${results.meli.length}, Ripley=${results.ripley.length}, Sodimac=${results.sodimac.length}`);
     
-    const allOrders = [...results.shopify, ...results.meli, ...results.ripley].filter(Boolean);
+    const allOrders = [...results.shopify, ...results.meli, ...results.ripley, ...results.sodimac].filter(Boolean);
 
     // Filter by date and source
     const filteredOrders = allOrders.filter(o => {
@@ -374,6 +436,7 @@ async function fetchFilteredOrders(rawStartDate, rawEndDate, source = 'all') {
         if (source === 'shopify') return o.source.includes('Shopify');
         if (source === 'ripley') return o.source === 'Ripley';
         if (source === 'meli') return o.source === 'Mercado Libre';
+        if (source === 'sodimac') return o.source === 'Sodimac';
         
         return true;
     });
@@ -484,6 +547,254 @@ app.get('/api/dashboard', async (req, res) => {
             details: error.message,
             stack: error.stack
         });
+    }
+});
+
+app.get('/api/inventory', async (req, res) => {
+    try {
+        console.log('\nIncoming Unified Inventory Request...');
+        
+        // 1. Fetch from all 4 channels in parallel
+        const [shopifyProducts, meliItems, ripleyOffers, sodimacProducts] = await Promise.all([
+            getAllProductsWithInventory().catch(err => {
+                console.error('Shopify inventory fetch failed:', err.message);
+                return [];
+            }),
+            getMeliInventory().catch(err => {
+                console.error('Mercado Libre inventory fetch failed:', err.message);
+                return [];
+            }),
+            getRipleyInventory().catch(err => {
+                console.error('Ripley inventory fetch failed:', err.message);
+                return [];
+            }),
+            getSodimacInventory().catch(err => {
+                console.error('Sodimac inventory fetch failed:', err.message);
+                return [];
+            })
+        ]);
+        
+        // 2. Display names in Title Case matching the database products
+        const displayNames = {
+            'AHPEQPRE': 'Ahumador Pequeño Premium',
+            'AHUMEPREM': 'Ahumador Mediano Premium',
+            'AHUGRAPREM': 'Ahumador Grande Premium',
+            'AHPEQBA': 'Ahumador Pequeño Basik',
+            'AHUMEBA': 'Ahumador Mediano Basik',
+            'AHUGRABA': 'Ahumador Grande Basik',
+            'AHUMINI': 'Ahumador Mini Basik',
+            'ASAPIC': 'Asador a Carbón Picnic',
+            'RACVER': 'Canastilla de Verduras',
+            'FORGRA': 'Forro Grande',
+            'FORMED': 'Forro Mediano',
+            'FORMIN': 'Forro Mini',
+            'FORPEQ': 'Forro Pequeño',
+            'ESPPES': 'Gancho Espina de Pescado Mediano',
+            'ESPPESMIN': 'Gancho Espina de Pescado Mini',
+            'GARPRE': 'Garfio Premium',
+            'GAROSO': 'Garra de Oso',
+            'KITGAN': 'Kit Ganchos x 6',
+            'KITPIN': 'Kit Pinchos x 4',
+            'KITPINMIN': 'Kit Pinchos x 4 Mini',
+            'RACPES': 'Rack de Pescado',
+            'RACPOL': 'Rack de Pollo',
+            'RAHAMPEQ': 'Rack Multiusos x 3',
+            'RACHAMMIN': 'Rack Multiusos x 3 Mini',
+            'RAHAMGRA': 'Rack Multiusos x 4',
+            'ACCVAP': 'Vaporizador'
+        };
+
+        const toTitleCase = (str) => {
+            if (!str) return 'N/A';
+            return str
+                .toLowerCase()
+                .split(' ')
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                .join(' ');
+        };
+
+        const inventoryMap = {};
+        skuDatabase.forEach(item => {
+            inventoryMap[item.sku] = {
+                sku: item.sku,
+                ean: item.ean,
+                title: displayNames[item.sku] || item.normalized,
+                shopifyStock: 0,
+                meliStock: 0,
+                meliFullStock: 0,
+                ripleyStock: 0,
+                ripleyFullStock: 0,
+                sodimacStock: 0,
+                totalStock: 0
+            };
+        });
+        
+        // Helper to find or create entry in inventoryMap
+        const getOrCreateEntry = (resolvedSku, resolvedEan, title) => {
+            // First check by resolved SKU
+            if (resolvedSku && resolvedSku !== 'N/A' && inventoryMap[resolvedSku]) {
+                return inventoryMap[resolvedSku];
+            }
+            // Check by resolved EAN
+            if (resolvedEan && resolvedEan !== 'N/A') {
+                const foundByEan = Object.values(inventoryMap).find(item => item.ean === resolvedEan);
+                if (foundByEan) return foundByEan;
+            }
+            // If not found in base database, check if already added as custom item
+            const key = resolvedSku !== 'N/A' ? resolvedSku : (resolvedEan !== 'N/A' ? resolvedEan : title);
+            if (!inventoryMap[key]) {
+                inventoryMap[key] = {
+                    sku: resolvedSku || 'N/A',
+                    ean: resolvedEan || 'N/A',
+                    title: toTitleCase(title),
+                    shopifyStock: 0,
+                    meliStock: 0,
+                    meliFullStock: 0,
+                    ripleyStock: 0,
+                    ripleyFullStock: 0,
+                    sodimacStock: 0,
+                    totalStock: 0
+                };
+            }
+            return inventoryMap[key];
+        };
+        
+        // 3. Process Shopify Stock
+        shopifyProducts.forEach(prod => {
+            const variants = prod.variants?.edges || [];
+            variants.forEach(edge => {
+                const variant = edge.node;
+                const variantTitle = variant.title && variant.title !== 'Default Title' ? `${prod.title} - ${variant.title}` : prod.title;
+                const normalizedTitle = normalizeProductName(variantTitle);
+                const codes = resolveProductCodes(normalizedTitle, variant.sku);
+                const entry = getOrCreateEntry(codes.sku, codes.ean, normalizedTitle);
+                entry.shopifyStock += variant.inventoryQuantity || 0;
+            });
+        });
+        
+        // 4. Process Mercado Libre Stock
+        meliItems.forEach(item => {
+            let sku = 'N/A';
+            let ean = 'N/A';
+            
+            const skuAttr = item.attributes?.find(attr => attr.id === 'SELLER_SKU');
+            if (skuAttr) sku = skuAttr.value_name;
+            
+            const gtinAttr = item.attributes?.find(attr => attr.id === 'GTIN');
+            if (gtinAttr) ean = gtinAttr.value_name;
+            
+            const isMeliFull = item.shipping?.logistic_type === 'fulfillment';
+            
+            if (item.variations && item.variations.length > 0) {
+                item.variations.forEach(v => {
+                    let vSku = sku;
+                    let vEan = ean;
+                    const vSkuAttr = v.attributes?.find(attr => attr.id === 'SELLER_SKU');
+                    if (vSkuAttr) vSku = vSkuAttr.value_name;
+                    const vGtinAttr = v.attributes?.find(attr => attr.id === 'GTIN');
+                    if (vGtinAttr) vEan = vGtinAttr.value_name;
+                    
+                    const varTitle = `${item.title} - ${v.attributes?.map(a => a.value_name).filter(Boolean).join(' ') || ''}`;
+                    const normalizedTitle = normalizeProductName(varTitle);
+                    const codes = resolveProductCodes(normalizedTitle, vSku);
+                    const entry = getOrCreateEntry(codes.sku, codes.ean, normalizedTitle);
+                    
+                    if (isMeliFull) {
+                        entry.meliFullStock += v.available_quantity || 0;
+                    } else {
+                        entry.meliStock += v.available_quantity || 0;
+                    }
+                });
+            } else {
+                const normalizedTitle = normalizeProductName(item.title);
+                const codes = resolveProductCodes(normalizedTitle, sku);
+                const entry = getOrCreateEntry(codes.sku, codes.ean, normalizedTitle);
+                
+                if (isMeliFull) {
+                    entry.meliFullStock += item.available_quantity || 0;
+                } else {
+                    entry.meliStock += item.available_quantity || 0;
+                }
+            }
+        });
+        
+        // 5. Process Ripley Stock
+        ripleyOffers.forEach(offer => {
+            const normalizedTitle = normalizeProductName(offer.product_title);
+            const codes = resolveProductCodes(normalizedTitle, offer.shop_sku);
+            const entry = getOrCreateEntry(codes.sku, codes.ean, normalizedTitle);
+            
+            const isRipleyFull = offer.fulfillment?.center?.code === 'Ripley Fulfillment' || offer.shop_sku.endsWith('-FF');
+            if (isRipleyFull) {
+                entry.ripleyFullStock += offer.quantity || 0;
+            } else {
+                entry.ripleyStock += offer.quantity || 0;
+            }
+        });
+        
+        // 6. Process Sodimac Stock
+        sodimacProducts.forEach(prod => {
+            const normalizedTitle = normalizeProductName(prod.Name || prod.Title);
+            const codes = resolveProductCodes(normalizedTitle, prod.SellerSku || prod.Sku);
+            const entry = getOrCreateEntry(codes.sku, codes.ean, normalizedTitle);
+            entry.sodimacStock += parseInt(prod.Quantity || 0, 10);
+        });
+        
+        // 7. Calculate total stocks and convert to array, clamping negative stocks to 0
+        const result = Object.values(inventoryMap).map(item => {
+            item.shopifyStock = Math.max(0, item.shopifyStock || 0);
+            item.meliStock = Math.max(0, item.meliStock || 0);
+            item.meliFullStock = Math.max(0, item.meliFullStock || 0);
+            item.ripleyStock = Math.max(0, item.ripleyStock || 0);
+            item.ripleyFullStock = Math.max(0, item.ripleyFullStock || 0);
+            item.sodimacStock = Math.max(0, item.sodimacStock || 0);
+            
+            item.totalStock = item.shopifyStock + item.meliStock + item.meliFullStock + item.ripleyStock + item.ripleyFullStock + item.sodimacStock;
+            return item;
+        });
+        
+        // Sort by the position of SKU in skuDatabase, extra items at the end
+        const dbOrder = {};
+        skuDatabase.forEach((item, idx) => {
+            dbOrder[item.sku] = idx;
+        });
+        
+        result.sort((a, b) => {
+            const indexA = dbOrder[a.sku];
+            const indexB = dbOrder[b.sku];
+            
+            if (indexA !== undefined && indexB !== undefined) {
+                return indexA - indexB;
+            }
+            if (indexA !== undefined) return -1;
+            if (indexB !== undefined) return 1;
+            
+            return a.title.localeCompare(b.title);
+        });
+        
+        res.json({
+            success: true,
+            timestamp: new Date().toISOString(),
+            inventory: result
+        });
+        
+    } catch (error) {
+        console.error('Inventory API Error:', error);
+        res.status(500).json({ error: 'Failed to aggregate inventory data', details: error.message });
+    }
+});
+
+app.get('/api/meli/shipments/:shipmentId/label', async (req, res) => {
+    try {
+        const { shipmentId } = req.params;
+        console.log(`[Server] Fetching Mercado Libre label for shipment ${shipmentId}`);
+        const pdfBuffer = await getMeliLabel(shipmentId);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="label_${shipmentId}.pdf"`);
+        res.send(pdfBuffer);
+    } catch (err) {
+        console.error('Error fetching Meli label:', err.message);
+        res.status(500).json({ error: 'Failed to fetch shipping label', details: err.message });
     }
 });
 

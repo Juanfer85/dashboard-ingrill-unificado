@@ -35,6 +35,51 @@ async function getRipleyOrders(startDate, endDate) {
     }
 }
 
+async function getRipleyInventory() {
+    if (!RIPLEY_API_KEY) {
+        console.error('RIPLEY_API_KEY is missing');
+        return [];
+    }
+
+    try {
+        console.log('--- FETCHING RIPLEY INVENTORY (OFFERS) ---');
+        
+        let allOffers = [];
+        let page = 1;
+        let hasNext = true;
+        
+        while (hasNext) {
+            const response = await axios.get(`${RIPLEY_API_BASE_URL}/offers`, {
+                headers: {
+                    'Authorization': RIPLEY_API_KEY,
+                    'Accept': 'application/json'
+                },
+                params: {
+                    max: 100,
+                    page: page
+                }
+            });
+
+            const offers = response.data.offers || [];
+            allOffers = allOffers.concat(offers);
+            
+            // Check if there are more pages (Mirakl usually has pagination link or we check page size)
+            if (offers.length < 100 || allOffers.length >= 1000) {
+                hasNext = false;
+            } else {
+                page++;
+            }
+        }
+        
+        console.log(`✅ Ripley inventory fetch successful: ${allOffers.length} offers found.`);
+        return allOffers;
+    } catch (err) {
+        console.error('Ripley Inventory Fetch Error:', err.response?.data || err.message);
+        return [];
+    }
+}
+
 module.exports = {
-    getRipleyOrders
+    getRipleyOrders,
+    getRipleyInventory
 };

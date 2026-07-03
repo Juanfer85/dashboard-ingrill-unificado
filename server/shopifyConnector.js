@@ -168,9 +168,13 @@ async function getProducts(first = 50, after = null) {
                         id
                         title
                         totalInventory
-                        variants(first: 1) {
+                        variants(first: 50) {
                             edges {
                                 node {
+                                    id
+                                    title
+                                    sku
+                                    inventoryQuantity
                                     price
                                 }
                             }
@@ -181,6 +185,25 @@ async function getProducts(first = 50, after = null) {
         }
     `;
     return shopifyQuery(query, { first, after });
+}
+
+async function getAllProductsWithInventory() {
+    let allProducts = [];
+    let hasNext = true;
+    let cursor = null;
+    while (hasNext) {
+        try {
+            const data = await getProducts(50, cursor);
+            if (!data || !data.products) break;
+            allProducts = allProducts.concat(data.products.edges.map(e => e.node));
+            hasNext = data.products.pageInfo.hasNextPage;
+            cursor = data.products.pageInfo.endCursor;
+        } catch (err) {
+            console.error('Error fetching Shopify products inventory:', err.message);
+            hasNext = false;
+        }
+    }
+    return allProducts;
 }
 
 /**
@@ -243,6 +266,7 @@ module.exports = {
     getOrders,
     getAllOrders,
     getProducts,
+    getAllProductsWithInventory,
     getCustomers,
     refreshShopifyToken
 };

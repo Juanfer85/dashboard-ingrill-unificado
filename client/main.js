@@ -38,6 +38,52 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('source-select').addEventListener('change', fetchData);
     document.getElementById('download-csv-btn').addEventListener('click', downloadExcel);
     document.getElementById('barrel-select').addEventListener('change', updateBarrelAnalysis);
+
+    // Navegación de Pestañas
+    const tabSalesBtn = document.getElementById('tab-sales');
+    const tabInventoryBtn = document.getElementById('tab-inventory');
+    const salesContent = document.getElementById('sales-tab-content');
+    const inventoryContent = document.getElementById('inventory-tab-content');
+    
+    if (tabSalesBtn && tabInventoryBtn) {
+        tabSalesBtn.addEventListener('click', () => {
+            tabSalesBtn.classList.add('active');
+            tabInventoryBtn.classList.remove('active');
+            salesContent.classList.add('active');
+            inventoryContent.classList.remove('active');
+            lucide.createIcons();
+        });
+        
+        tabInventoryBtn.addEventListener('click', () => {
+            tabInventoryBtn.classList.add('active');
+            tabSalesBtn.classList.remove('active');
+            inventoryContent.classList.add('active');
+            salesContent.classList.remove('active');
+            lucide.createIcons();
+            if (!window.inventoryData) {
+                fetchInventory();
+            }
+        });
+    }
+
+    const refreshInvBtn = document.getElementById('refresh-inventory-btn');
+    if (refreshInvBtn) {
+        refreshInvBtn.addEventListener('click', fetchInventory);
+    }
+
+    const invSearchInput = document.getElementById('inventory-search');
+    if (invSearchInput) {
+        invSearchInput.addEventListener('input', () => {
+            const query = invSearchInput.value.toLowerCase().trim();
+            if (!window.inventoryData) return;
+            const filtered = window.inventoryData.filter(item => 
+                (item.title || '').toLowerCase().includes(query) ||
+                (item.sku || '').toLowerCase().includes(query) ||
+                (item.ean || '').toLowerCase().includes(query)
+            );
+            renderInventory(filtered);
+        });
+    }
 });
 
 function initializeFilters() {
@@ -101,14 +147,15 @@ function updateDashboard(data) {
     renderRecentOrders(recentOrders);
 
     // Global Breakdowns
-    const globalRevenueBreakdown = { shopify: 0, meli: 0, ripley: 0 };
-    const globalOrdersBreakdown = { shopify: 0, meli: 0, ripley: 0 };
+    const globalRevenueBreakdown = { shopify: 0, meli: 0, ripley: 0, sodimac: 0 };
+    const globalOrdersBreakdown = { shopify: 0, meli: 0, ripley: 0, sodimac: 0 };
     
     recentOrders.forEach(o => {
         const source = String(o.source).toLowerCase();
         let key = 'shopify';
         if (source.includes('ripley')) key = 'ripley';
         else if (source.includes('mercado libre')) key = 'meli';
+        else if (source.includes('sodimac')) key = 'sodimac';
         
         globalRevenueBreakdown[key] += (o.totalPrice || 0);
         globalOrdersBreakdown[key] += 1;
@@ -121,6 +168,7 @@ function updateDashboard(data) {
     updateCharts(data);
     
     updateBarrelAnalysis();
+    renderMeliShipments(recentOrders);
 }
 
 function renderUnitsList(products) {
@@ -226,6 +274,9 @@ function renderRecentOrders(orders) {
         } else if (sourceLower.includes('shopify pos')) {
             logoPath = 'logos/logo_shopify.png';
             label = 'Shopify POS';
+        } else if (sourceLower.includes('sodimac')) {
+            logoPath = 'logos/logo_sodimac.png';
+            label = 'Sodimac';
         }
         
         return `
@@ -344,17 +395,18 @@ function updateCharts(data) {
     });
 
     // 2. Origin Breakdown
-    const originRevenue = { 'Shopify': 0, 'Mercado Libre': 0, 'Ripley': 0 };
+    const originRevenue = { 'Shopify': 0, 'Mercado Libre': 0, 'Ripley': 0, 'Sodimac': 0 };
     orders.forEach(o => {
         const source = String(o.source);
         if (source.includes('Shopify')) originRevenue['Shopify'] += o.totalPrice;
         else if (source.includes('Mercado Libre')) originRevenue['Mercado Libre'] += o.totalPrice;
         else if (source.includes('Ripley')) originRevenue['Ripley'] += o.totalPrice;
+        else if (source.includes('Sodimac')) originRevenue['Sodimac'] += o.totalPrice;
     });
 
     const originLabels = Object.keys(originRevenue);
     const originValues = Object.values(originRevenue);
-    const originColors = ['#96bf48', '#ffe600', '#f97316']; // Shopify Green, Meli Yellow, Ripley Orange
+    const originColors = ['#96bf48', '#ffe600', '#8b5dbc', '#00875a']; // Shopify Green, Meli Yellow, Ripley Purple, Sodimac Green
 
     if (originChart) originChart.destroy();
     originChart = new Chart(document.getElementById('origin-revenue-chart'), {
@@ -436,7 +488,8 @@ function renderBreakdown(containerId, channelData, total) {
     const channels = [
         { name: 'Shopify', key: 'shopify', class: 'shopify' },
         { name: 'Meli', key: 'meli', class: 'meli' },
-        { name: 'Ripley', key: 'ripley', class: 'ripley' }
+        { name: 'Ripley', key: 'ripley', class: 'ripley' },
+        { name: 'Sodimac', key: 'sodimac', class: 'sodimac' }
     ];
 
     container.innerHTML = channels.map(c => {
@@ -629,8 +682,8 @@ function updateBarrelAnalysis() {
     
     const requiredTerms = termsMap[type] || [];
     
-    const barrelUnitsBreakdown = { shopify: 0, meli: 0, ripley: 0 };
-    const barrelRevenueBreakdown = { shopify: 0, meli: 0, ripley: 0 };
+    const barrelUnitsBreakdown = { shopify: 0, meli: 0, ripley: 0, sodimac: 0 };
+    const barrelRevenueBreakdown = { shopify: 0, meli: 0, ripley: 0, sodimac: 0 };
     let totalGlobalUnits = 0;
  
     window.currentDisplayRows.forEach(row => {
@@ -660,6 +713,7 @@ function updateBarrelAnalysis() {
             let channelKey = 'shopify';
             if (source.includes('ripley')) channelKey = 'ripley';
             else if (source.includes('mercado libre')) channelKey = 'meli';
+            else if (source.includes('sodimac')) channelKey = 'sodimac';
 
             barrelUnitsBreakdown[channelKey] += qty;
             barrelRevenueBreakdown[channelKey] += rev;
@@ -674,4 +728,208 @@ function updateBarrelAnalysis() {
 
     renderBreakdown('barrel-units-breakdown', barrelUnitsBreakdown, totalGlobalUnits);
     renderBreakdown('barrel-revenue-breakdown', barrelRevenueBreakdown, globalTotalRevenue);
+}
+
+async function fetchInventory() {
+    const loading = document.getElementById('loading');
+    if (loading) loading.style.display = 'flex';
+    
+    try {
+        const res = await fetch(`${API_BASE}/inventory`);
+        const data = await res.json();
+        
+        if (data.success && data.inventory) {
+            window.inventoryData = data.inventory;
+            
+            // Calcular Métricas
+            let totalSkus = data.inventory.length;
+            let shopifyStock = 0;
+            let meliLocal = 0;
+            let meliFull = 0;
+            let ripleyLocal = 0;
+            let ripleyFull = 0;
+            let sodimacStock = 0;
+            
+            data.inventory.forEach(item => {
+                shopifyStock += item.shopifyStock || 0;
+                meliLocal += item.meliStock || 0;
+                meliFull += item.meliFullStock || 0;
+                ripleyLocal += item.ripleyStock || 0;
+                ripleyFull += item.ripleyFullStock || 0;
+                sodimacStock += item.sodimacStock || 0;
+            });
+            
+            document.getElementById('inv-total-products').innerText = totalSkus;
+            document.getElementById('inv-shopify-stock').innerText = shopifyStock;
+            document.getElementById('inv-meli-stock').innerText = meliLocal + meliFull;
+            document.getElementById('inv-ripley-stock').innerText = ripleyLocal + ripleyFull;
+            document.getElementById('inv-sodimac-stock').innerText = sodimacStock;
+            
+            // Renderizar desgloses en las tarjetas de métricas
+            const meliBreakdownEl = document.getElementById('inv-meli-breakdown');
+            if (meliBreakdownEl) {
+                meliBreakdownEl.innerHTML = `
+                    <div class="channel-tag meli">Local <span>${meliLocal}</span></div>
+                    <div class="channel-tag meli" style="background:rgba(255,230,0,0.08); border-color:rgba(255,230,0,0.15);">Full <span>${meliFull}</span></div>
+                `;
+            }
+            const ripleyBreakdownEl = document.getElementById('inv-ripley-breakdown');
+            if (ripleyBreakdownEl) {
+                ripleyBreakdownEl.innerHTML = `
+                    <div class="channel-tag ripley">Local <span>${ripleyLocal}</span></div>
+                    <div class="channel-tag ripley" style="background:rgba(139,93,188,0.08); border-color:rgba(139,93,188,0.15);">Full <span>${ripleyFull}</span></div>
+                `;
+            }
+            
+            renderInventory(data.inventory);
+        } else {
+            alert('Error al sincronizar inventario');
+        }
+    } catch (err) {
+        console.error('Fetch Inventory Error:', err);
+        alert('Error de conexión con el servidor de inventario');
+    } finally {
+        if (loading) loading.style.display = 'none';
+        lucide.createIcons();
+    }
+}
+
+function renderInventory(items) {
+    const container = document.getElementById('inventory-list');
+    const recordCountEl = document.getElementById('inv-record-count');
+    
+    if (!container) return;
+    
+    if (recordCountEl) {
+        recordCountEl.innerText = `Mostrando ${items.length} productos`;
+    }
+    
+    if (items.length === 0) {
+        container.innerHTML = '<tr><td colspan="10" style="text-align: center; padding: 3rem; color: var(--text-secondary);">No se encontraron productos.</td></tr>';
+        return;
+    }
+    
+    container.innerHTML = items.map(item => {
+        const totalStock = item.totalStock || 0;
+        
+        // Highlight stock values
+        const getStockCell = (stock, colorClass) => {
+            if (stock > 0) {
+                return `<span style="font-weight: 700; color: ${colorClass};">${stock}</span>`;
+            }
+            return `<span style="color: var(--text-secondary); opacity: 0.5;">0</span>`;
+        };
+        
+        return `
+            <tr>
+                <td class="text-wrap">
+                    <span style="font-weight: 600; font-size: 0.85rem; color: var(--text-primary);">${item.title}</span>
+                </td>
+                <td class="nowrap">
+                    <span class="sku-tag">${item.sku || 'N/A'}</span>
+                </td>
+                <td class="nowrap">
+                    <span class="sku-tag" style="background: rgba(255,255,255,0.03); color: var(--text-secondary); border: 1px solid var(--border);">${item.ean || 'N/A'}</span>
+                </td>
+                <td style="text-align: center;">${getStockCell(item.shopifyStock, 'var(--stock-shopify)')}</td>
+                <td style="text-align: center;">${getStockCell(item.meliStock, 'var(--stock-meli)')}</td>
+                <td style="text-align: center; background: rgba(255, 230, 0, 0.015);">${getStockCell(item.meliFullStock, 'var(--stock-meli-full)')}</td>
+                <td style="text-align: center;">${getStockCell(item.ripleyStock, 'var(--stock-ripley)')}</td>
+                <td style="text-align: center; background: rgba(249, 115, 22, 0.015);">${getStockCell(item.ripleyFullStock, 'var(--stock-ripley-full)')}</td>
+                <td style="text-align: center;">${getStockCell(item.sodimacStock, 'var(--stock-sodimac)')}</td>
+                <td style="text-align: center; font-weight: 800; font-size: 0.9rem; background: rgba(255,255,255,0.02);">${totalStock}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function formatMeliDate(dateStr) {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    const monthsEs = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const day = date.getDate();
+    const month = monthsEs[date.getMonth()];
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${day} ${month} ${hours}:${minutes}`;
+}
+
+function renderMeliShipments(orders) {
+    const grid = document.getElementById('meli-shipments-grid');
+    const countEl = document.getElementById('meli-shipments-count');
+    if (!grid) return;
+
+    // Filter Meli orders that have active shipment status (i.e. not delivered, not cancelled)
+    const activeMeli = orders.filter(o => 
+        o.source === 'Mercado Libre' && 
+        o.shippingId && 
+        o.shippingStatus !== 'delivered' && 
+        o.shippingStatus !== 'cancelled'
+    );
+
+    // Sort newest first
+    activeMeli.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    if (countEl) {
+        countEl.innerText = `${activeMeli.length} envíos`;
+    }
+
+    if (activeMeli.length === 0) {
+        grid.innerHTML = `
+            <div style="grid-column: 1 / -1; text-align: center; padding: 3rem; color: var(--text-secondary); background: rgba(255,255,255,0.01); border-radius: 1rem; border: 1px dashed var(--border);">
+                <i data-lucide="check-circle" style="width: 32px; height: 32px; color: #10b981; margin-bottom: 0.75rem;"></i>
+                <div style="font-weight: 600; font-size: 0.95rem; color: var(--text-primary);">¡Todo despachado!</div>
+                <div style="font-size: 0.8rem; margin-top: 0.25rem;">No hay envíos de Mercado Libre en proceso para el rango seleccionado.</div>
+            </div>
+        `;
+        lucide.createIcons();
+        return;
+    }
+
+    grid.innerHTML = activeMeli.map(o => {
+        const dateFormatted = formatMeliDate(o.createdAt);
+        const productsHtml = o.items.map(item => 
+            `<strong>${item.title}</strong> (SKU: ${item.sku}) x${item.quantity}`
+        ).join('<br>');
+
+        const totalFormatted = formatCurrency(o.totalPrice) + ' CLP';
+        
+        // Check printed status
+        const isPrinted = o.shippingSubstatus === 'printed';
+        const labelStatusClass = isPrinted ? 'printed' : 'pending';
+        const labelStatusText = isPrinted ? 'Etiqueta impresa' : 'Pendiente de impresión';
+        const labelIcon = isPrinted ? 'check-circle-2' : 'clock';
+
+        return `
+            <div class="shipment-card">
+                <div class="shipment-header">
+                    <span>${o.id} — ${dateFormatted}</span>
+                </div>
+                <div class="shipment-detail">
+                    <div>Cliente: <strong>${o.customer}</strong></div>
+                    <div style="margin-top: 0.25rem; line-height: 1.4;">Producto: ${productsHtml}</div>
+                    <div style="margin-top: 0.25rem;">Total: <strong>${totalFormatted}</strong></div>
+                </div>
+                <div class="shipment-footer">
+                    <span class="label-status ${labelStatusClass}">
+                        <i data-lucide="${labelIcon}" style="width: 12px; height: 12px;"></i> ${labelStatusText}
+                    </span>
+                    <button class="btn-reprint" onclick="reprintMeliLabel('${o.shippingId}')">
+                        <i data-lucide="printer" style="width: 12px; height: 12px;"></i> Reimprimir etiqueta
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    lucide.createIcons();
+}
+
+function reprintMeliLabel(shippingId) {
+    if (!shippingId || shippingId === 'null') {
+        alert('ID de envío no válido.');
+        return;
+    }
+    const labelUrl = `${API_BASE}/meli/shipments/${shippingId}/label`;
+    window.open(labelUrl, '_blank');
 }

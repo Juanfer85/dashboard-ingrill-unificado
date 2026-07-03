@@ -58,7 +58,7 @@ async function refreshMeliToken() {
     }
 }
 
-async function meliRequest(method, url, params = {}, data = null) {
+async function meliRequest(method, url, params = {}, data = null, customConfig = {}) {
     const tokens = readTokens();
     if (!tokens) return null;
 
@@ -68,7 +68,8 @@ async function meliRequest(method, url, params = {}, data = null) {
             url: `https://api.mercadolibre.com${url}`,
             headers: { 'Authorization': `Bearer ${token}` },
             params,
-            data
+            data,
+            ...customConfig
         });
     };
 
@@ -83,6 +84,22 @@ async function meliRequest(method, url, params = {}, data = null) {
                 return retry.data;
             }
         }
+        throw err;
+    }
+}
+
+async function getMeliLabel(shipmentId) {
+    try {
+        const data = await meliRequest(
+            'GET',
+            `/shipments/${shipmentId}/labels`,
+            { response_type: 'pdf' },
+            null,
+            { responseType: 'arraybuffer' }
+        );
+        return data;
+    } catch (err) {
+        console.error(`[Meli] Failed to fetch label for shipment ${shipmentId}:`, err.message);
         throw err;
     }
 }
@@ -135,7 +152,57 @@ async function getMeliOrders(from, to) {
     }
 }
 
+async function getMeliInventory() {
+    try {
+        const me = await meliRequest('GET', '/users/me');
+        if (!me || !me.id) return [];
+        const sellerId = me.id;
+
+        let allItemIds = [];
+        let hasMore = true;
+        let offset = 0;
+        const limit = 50;
+
+        while (hasMore) {
+            const searchRes = await meliRequest('GET', `/users/${sellerId}/items/search`, {
+                status: 'active',
+                limit: limit,
+                offset: offset
+            });
+            if (!searchRes || !searchRes.results || searchRes.results.length === 0) {
+                break;
+            }
+            allItemIds = allItemIds.concat(searchRes.results);
+            offset += limit;
+            hasMore = (searchRes.paging && searchRes.paging.total > offset) && (allItemIds.length < 2000);
+        }
+
+        if (allItemIds.length === 0) return [];
+
+        // Fetch details in chunks of 20 (standard limit for multiget /items)
+        const chunk = 20;
+        let allItems = [];
+        for (let i = 0; i < allItemIds.length; i += chunk) {
+            const chunkIds = allItemIds.slice(i, i + chunk);
+            const details = await meliRequest('GET', '/items', { ids: chunkIds.join(',') });
+            if (Array.isArray(details)) {
+                details.forEach(res => {
+                    if (res.code === 200 && res.body) {
+                        allItems.push(res.body);
+                    }
+                });
+            }
+        }
+        return allItems;
+    } catch (err) {
+        console.error('MELI getInventory error:', err.message);
+        return [];
+    }
+}
+
 module.exports = {
     getMeliOrders,
-    meliRequest
+    getMeliInventory,
+    meliRequest,
+    getMeliLabel
 };
