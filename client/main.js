@@ -864,9 +864,9 @@ function renderMeliShipments(orders) {
     // Filter Meli orders that have active shipment status (i.e. not delivered, not cancelled)
     const activeMeli = orders.filter(o => 
         o.source === 'Mercado Libre' && 
-        o.shippingId && 
-        o.shippingStatus !== 'delivered' && 
-        o.shippingStatus !== 'cancelled'
+        o.shipping?.id && 
+        o.shipping?.status !== 'delivered' && 
+        o.shipping?.status !== 'cancelled'
     );
 
     // Sort newest first
@@ -897,7 +897,7 @@ function renderMeliShipments(orders) {
         const totalFormatted = formatCurrency(o.totalPrice) + ' CLP';
         
         // Check printed status
-        const isPrinted = o.shippingSubstatus === 'printed';
+        const isPrinted = o.shipping?.substatus === 'printed';
         const labelStatusClass = isPrinted ? 'printed' : 'pending';
         const labelStatusText = isPrinted ? 'Etiqueta impresa' : 'Pendiente de impresión';
         const labelIcon = isPrinted ? 'check-circle-2' : 'clock';
@@ -916,7 +916,7 @@ function renderMeliShipments(orders) {
                     <span class="label-status ${labelStatusClass}">
                         <i data-lucide="${labelIcon}" style="width: 12px; height: 12px;"></i> ${labelStatusText}
                     </span>
-                    <button class="btn-reprint" onclick="reprintMeliLabel('${o.shippingId}')">
+                    <button class="btn-reprint" onclick="reprintMeliLabel('${o.shipping?.id}')">
                         <i data-lucide="printer" style="width: 12px; height: 12px;"></i> Reimprimir etiqueta
                     </button>
                 </div>

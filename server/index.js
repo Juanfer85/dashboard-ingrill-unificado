@@ -219,9 +219,11 @@ function normalizeMeliOrder(o) {
         sku,
         ean,
         items,
-        shippingId: o.shipping?.id || null,
-        shippingStatus: o.shipping?.status || null,
-        shippingSubstatus: o.shipping?.substatus || null
+        shipping: {
+            id: o.shipping?.id || null,
+            status: o.shipping?.status || null,
+            substatus: o.shipping?.substatus || null
+        }
     };
 }
 
@@ -667,7 +669,7 @@ app.get('/api/meli-shipments', async (req, res) => {
         const meliOrders = await fetchFilteredOrders(startDate, endDate, 'meli');
 
         const activeShipments = meliOrders
-            .filter(o => o.shippingId && o.shippingStatus !== 'delivered' && o.shippingStatus !== 'cancelled')
+            .filter(o => o.shipping?.id && o.shipping?.status !== 'delivered' && o.shipping?.status !== 'cancelled')
             .map(o => ({
                 id: o.id,
                 createdAt: o.createdAt,
@@ -680,9 +682,11 @@ app.get('/api/meli-shipments', async (req, res) => {
                     price: item.price
                 })),
                 totalPrice: o.totalPrice,
-                shippingId: o.shippingId,
-                shippingStatus: o.shippingStatus,
-                shippingSubstatus: o.shippingSubstatus
+                shipping: {
+                    id: o.shipping?.id || null,
+                    status: o.shipping?.status || null,
+                    substatus: o.shipping?.substatus || null
+                }
             }));
 
         res.json({
