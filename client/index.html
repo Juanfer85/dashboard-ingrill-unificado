@@ -655,6 +655,24 @@
         .btn-reprint:hover {
             opacity: 0.9;
         }
+        
+        /* ALERT COLORS FOR INVAS INVENTORY ROWS */
+        .row-alert-red {
+            background-color: rgba(239, 68, 68, 0.12) !important;
+            color: #f87171 !important;
+        }
+        body[data-theme="light"] .row-alert-red {
+            background-color: rgba(254, 226, 226, 0.5) !important;
+            color: #b91c1c !important;
+        }
+        .row-alert-yellow {
+            background-color: rgba(234, 179, 8, 0.12) !important;
+            color: #facc15 !important;
+        }
+        body[data-theme="light"] .row-alert-yellow {
+            background-color: rgba(254, 249, 195, 0.5) !important;
+            color: #854d0e !important;
+        }
     </style>
 </head>
 <body>
@@ -698,6 +716,9 @@
             </button>
             <button class="btn-tab" id="tab-inventory">
                 <i data-lucide="package"></i> Control de Inventario
+            </button>
+            <button class="btn-tab" id="tab-invas">
+                <i data-lucide="clipboard-list"></i> Inventario INVAS
             </button>
         </div>
 
@@ -910,6 +931,45 @@
                             </tr>
                         </thead>
                         <tbody id="inventory-list">
+                            <!-- Carga vía JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Pestaña de Inventario INVAS -->
+        <div id="invas-tab-content" class="tab-content">
+            <!-- Barra de Búsqueda -->
+            <div class="table-card" style="margin-bottom: 1.25rem; padding: 1rem 1.5rem;">
+                <div style="display: flex; gap: 1rem; align-items: center;">
+                    <i data-lucide="search" style="color: var(--text-secondary); width: 20px; height: 20px;"></i>
+                    <input type="text" id="invas-search" placeholder="Buscar por Nombre de Producto..." style="background: transparent; border: none; color: var(--text-primary); outline: none; font-size: 0.95rem; font-weight: 600; width: 100%;">
+                </div>
+            </div>
+            
+            <!-- Tabla de Inventario INVAS -->
+            <div class="table-card">
+                <div class="table-header">
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <h2>Inventario Base INVAS</h2>
+                        <span id="invas-record-count" style="color: var(--text-secondary); font-size: 0.75rem; font-weight: 600;">Cargando inventario...</span>
+                    </div>
+                    <button id="refresh-invas-btn" class="btn-primary" style="padding: 0.4rem 1rem; font-size: 0.75rem;">
+                        <i data-lucide="refresh-cw"></i> Sincronizar INVAS
+                    </button>
+                </div>
+                <div class="table-wrapper" style="max-height: 600px;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 25%">Código</th>
+                                <th style="width: 45%">Producto</th>
+                                <th style="width: 15%; text-align: center;">Disponible</th>
+                                <th style="width: 15%; text-align: center;">Última actualización</th>
+                            </tr>
+                        </thead>
+                        <tbody id="invas-list">
                             <!-- Carga vía JS -->
                         </tbody>
                     </table>

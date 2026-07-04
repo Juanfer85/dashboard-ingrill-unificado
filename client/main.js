@@ -42,33 +42,40 @@ document.addEventListener('DOMContentLoaded', () => {
     // Navegación de Pestañas
     const tabSalesBtn = document.getElementById('tab-sales');
     const tabInventoryBtn = document.getElementById('tab-inventory');
+    const tabInvasBtn = document.getElementById('tab-invas');
     const salesContent = document.getElementById('sales-tab-content');
     const inventoryContent = document.getElementById('inventory-tab-content');
+    const invasContent = document.getElementById('invas-tab-content');
     
-    if (tabSalesBtn && tabInventoryBtn) {
-        tabSalesBtn.addEventListener('click', () => {
-            tabSalesBtn.classList.add('active');
-            tabInventoryBtn.classList.remove('active');
-            salesContent.classList.add('active');
-            inventoryContent.classList.remove('active');
-            lucide.createIcons();
-        });
-        
-        tabInventoryBtn.addEventListener('click', () => {
-            tabInventoryBtn.classList.add('active');
-            tabSalesBtn.classList.remove('active');
-            inventoryContent.classList.add('active');
-            salesContent.classList.remove('active');
-            lucide.createIcons();
-            if (!window.inventoryData) {
-                fetchInventory();
-            }
-        });
-    }
+    const tabs = [
+        { btn: tabSalesBtn, content: salesContent, onShow: null },
+        { btn: tabInventoryBtn, content: inventoryContent, onShow: () => { if (!window.inventoryData) fetchInventory(); } },
+        { btn: tabInvasBtn, content: invasContent, onShow: () => { if (!window.invasData) fetchInvasInventory(); } }
+    ];
+
+    tabs.forEach(tab => {
+        if (tab.btn && tab.content) {
+            tab.btn.addEventListener('click', () => {
+                tabs.forEach(t => {
+                    t.btn?.classList.remove('active');
+                    t.content?.classList.remove('active');
+                });
+                tab.btn.classList.add('active');
+                tab.content.classList.add('active');
+                lucide.createIcons();
+                if (tab.onShow) tab.onShow();
+            });
+        }
+    });
 
     const refreshInvBtn = document.getElementById('refresh-inventory-btn');
     if (refreshInvBtn) {
         refreshInvBtn.addEventListener('click', fetchInventory);
+    }
+
+    const refreshInvasBtn = document.getElementById('refresh-invas-btn');
+    if (refreshInvasBtn) {
+        refreshInvasBtn.addEventListener('click', fetchInvasInventory);
     }
 
     const invSearchInput = document.getElementById('inventory-search');
@@ -82,6 +89,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 (item.ean || '').toLowerCase().includes(query)
             );
             renderInventory(filtered);
+        });
+    }
+
+    const invasSearchInput = document.getElementById('invas-search');
+    if (invasSearchInput) {
+        invasSearchInput.addEventListener('input', () => {
+            const query = invasSearchInput.value.toLowerCase().trim();
+            if (!window.invasData) return;
+            const filtered = window.invasData.filter(item => 
+                (item.nombre || '').toLowerCase().includes(query)
+            );
+            renderInvasInventory(filtered);
         });
     }
 });
@@ -940,4 +959,99 @@ function reprintMeliLabel(shippingId) {
     }
     const labelUrl = `${API_BASE}/meli/shipments/${shippingId}/label`;
     window.open(labelUrl, '_blank');
+}
+
+async function fetchInvasInventory() {
+    const loading = document.getElementById('loading');
+    if (loading) loading.style.display = 'flex';
+    
+    const countEl = document.getElementById('invas-record-count');
+    const listEl = document.getElementById('invas-list');
+    
+    if (countEl) countEl.innerText = 'Cargando inventario...';
+    if (listEl) {
+        listEl.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 3rem; color: var(--text-secondary);">Cargando inventario...</td></tr>';
+    }
+
+    try {
+        const res = await fetch(`${API_BASE}/inventory`);
+        if (!res.ok) {
+            throw new Error(`Server returned status ${res.status}`);
+        }
+        const data = await res.json();
+        
+        if (Array.isArray(data)) {
+            // Sort alphabetically by name by default
+            data.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es', { sensitivity: 'base' }));
+            
+            window.invasData = data;
+            
+            if (data.length === 0) {
+                if (countEl) countEl.innerText = 'Mostrando 0 productos';
+                if (listEl) {
+                    listEl.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 3rem; color: var(--text-secondary);">No hay datos de inventario disponibles</td></tr>';
+                }
+            } else {
+                renderInvasInventory(data);
+            }
+        } else {
+            throw new Error('Data is not an array');
+        }
+    } catch (err) {
+        console.error('Fetch INVAS Inventory Error:', err);
+        if (countEl) countEl.innerText = 'Error';
+        if (listEl) {
+            listEl.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 3rem; color: #f87171; font-weight: 600;">No se pudo cargar el inventario, intenta de nuevo</td></tr>';
+        }
+    } finally {
+        if (loading) loading.style.display = 'none';
+        lucide.createIcons();
+    }
+}
+
+function renderInvasInventory(items) {
+    const container = document.getElementById('invas-list');
+    const recordCountEl = document.getElementById('invas-record-count');
+    
+    if (!container) return;
+    
+    if (recordCountEl) {
+        recordCountEl.innerText = `Mostrando ${items.length} productos`;
+    }
+    
+    if (items.length === 0) {
+        container.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 3rem; color: var(--text-secondary);">No se encontraron productos.</td></tr>';
+        return;
+    }
+    
+    container.innerHTML = items.map(item => {
+        const disponible = item.disponible !== undefined ? item.disponible : 0;
+        const actualizado = item.actualizado || 'N/A';
+        const codigo = item.codigo || 'N/A';
+        const nombre = item.nombre || 'N/A';
+        
+        let rowClass = '';
+        if (disponible === 0) {
+            rowClass = 'class="row-alert-red"';
+        } else if (disponible > 0 && disponible < 5) {
+            rowClass = 'class="row-alert-yellow"';
+        }
+        
+        return `
+            <tr ${rowClass}>
+                <td class="nowrap">
+                    <span class="sku-tag" style="background: rgba(255,255,255,0.03); color: var(--text-secondary); border: 1px solid var(--border);">${codigo}</span>
+                </td>
+                <td class="text-wrap" style="font-weight: 600; font-size: 0.85rem;">
+                    ${nombre}
+                </td>
+                <td style="text-align: center; font-weight: 700;">
+                    ${disponible}
+                </td>
+                <td style="text-align: center; font-weight: 500; opacity: 0.8;">
+                    ${actualizado}
+                </td>
+            </tr>
+        `;
+    }).join('');
 }
