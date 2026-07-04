@@ -413,7 +413,180 @@ app.get('/api/dashboard', async (req, res) => {
     }
 });
 
+// Cache variables for INVAS Inventory
+let invasCache = null;
+let invasCacheTime = 0;
+
+// Helper to parse CSV string, supporting commas inside quotes and UTF-8
+function parseCSV(csvText) {
+    const lines = [];
+    let currentLine = [];
+    let currentCell = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < csvText.length; i++) {
+        const char = csvText[i];
+        const nextChar = csvText[i + 1];
+        
+        if (char === '"') {
+            if (inQuotes && nextChar === '"') {
+                currentCell += '"';
+                i++; // Skip next quote
+            } else {
+                inQuotes = !inQuotes;
+            }
+        } else if (char === ',' && !inQuotes) {
+            currentLine.push(currentCell.trim());
+            currentCell = '';
+        } else if ((char === '\r' || char === '\n') && !inQuotes) {
+            if (char === '\r' && nextChar === '\n') {
+                i++; // Skip \n
+            }
+            currentLine.push(currentCell.trim());
+            lines.push(currentLine);
+            currentLine = [];
+            currentCell = '';
+        } else {
+            currentCell += char;
+        }
+    }
+    if (currentCell || currentLine.length > 0) {
+        currentLine.push(currentCell.trim());
+        lines.push(currentLine);
+    }
+    return lines.filter(line => line.length > 0 && line.some(cell => cell !== ''));
+}
+
+// Helper to convert date from format D/M/YYYY or DD/MM/YYYY to ISO YYYY-MM-DD
+function convertDateToISO(dateStr) {
+    if (!dateStr) return null;
+    const trimmed = dateStr.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+        return trimmed;
+    }
+    const parts = trimmed.split('/');
+    if (parts.length === 3) {
+        const day = parts[0].padStart(2, '0');
+        const month = parts[1].padStart(2, '0');
+        const year = parts[2];
+        if (year.length === 4 && !isNaN(day) && !isNaN(month)) {
+            return `${year}-${month}-${day}`;
+        }
+    }
+    return trimmed; // fallback
+}
+
+// New endpoint: GET /api/inventory (INVAS inventory from Google Sheets)
 app.get('/api/inventory', async (req, res) => {
+    try {
+        console.log('\nIncoming INVAS Inventory Request...');
+        const now = Date.now();
+        if (invasCache && (now - invasCacheTime < 5 * 60 * 1000)) {
+            console.log('Serving INVAS inventory from cache');
+            return res.json(invasCache);
+        }
+
+        const csvUrl = process.env.INVAS_SHEET_CSV_URL;
+        if (!csvUrl) {
+            console.error('INVAS_SHEET_CSV_URL variable is not defined in environment');
+            return res.status(503).json({ error: 'Configuración del servidor incompleta', details: 'INVAS_SHEET_CSV_URL no definida' });
+        }
+
+        console.log(`Downloading CSV from: ${csvUrl}`);
+        const axios = require('axios');
+        let response;
+        try {
+            response = await axios.get(csvUrl, { 
+                responseType: 'arraybuffer',
+                timeout: 10000 // 10 second timeout
+            });
+        } catch (fetchErr) {
+            console.error('Failed to fetch CSV from Google Sheets:', fetchErr.message);
+            return res.status(503).json({ 
+                error: 'Servicio no disponible', 
+                details: `No se pudo obtener el inventario de Google Sheets: ${fetchErr.message}` 
+            });
+        }
+
+        // Force UTF-8 decoding to preserve Ñ and tildes
+        const csvText = Buffer.from(response.data).toString('utf8');
+        if (!csvText || csvText.trim().length === 0) {
+            console.error('CSV data received is empty');
+            return res.status(422).json({ 
+                error: 'Entidad no procesable', 
+                details: 'El archivo CSV recibido de Google Sheets está vacío.' 
+            });
+        }
+
+        const rows = parseCSV(csvText);
+        if (rows.length < 2) {
+            console.error('CSV does not have enough rows (header + data)');
+            return res.status(422).json({ 
+                error: 'Entidad no procesable', 
+                details: 'El archivo CSV recibido no contiene filas suficientes (cabecera + datos).' 
+            });
+        }
+
+        const headers = rows[0].map(h => h.trim().toUpperCase());
+        console.log('CSV Headers:', headers);
+
+        // Required columns: PROD. COD, PROD NOM, DISP COMERCIAL, ULTIMA ACTUALIZACION
+        const idxCodigo = headers.indexOf('PROD. COD');
+        const idxNombre = headers.indexOf('PROD NOM');
+        const idxDisponible = headers.indexOf('DISP COMERCIAL');
+        const idxActualizado = headers.indexOf('ULTIMA ACTUALIZACION');
+
+        if (idxCodigo === -1 || idxNombre === -1 || idxDisponible === -1 || idxActualizado === -1) {
+            const missing = [];
+            if (idxCodigo === -1) missing.push('PROD. COD');
+            if (idxNombre === -1) missing.push('PROD NOM');
+            if (idxDisponible === -1) missing.push('DISP COMERCIAL');
+            if (idxActualizado === -1) missing.push('ULTIMA ACTUALIZACION');
+            console.error('Missing expected columns in CSV:', missing);
+            return res.status(422).json({ 
+                error: 'Entidad no procesable', 
+                details: `Columnas faltantes en el CSV: ${missing.join(', ')}` 
+            });
+        }
+
+        const products = [];
+        for (let i = 1; i < rows.length; i++) {
+            const row = rows[i];
+            if (row.length <= Math.max(idxCodigo, idxNombre, idxDisponible, idxActualizado)) {
+                continue;
+            }
+
+            const rawCodigo = row[idxCodigo];
+            const rawNombre = row[idxNombre];
+            const rawDisponible = row[idxDisponible];
+            const rawActualizado = row[idxActualizado];
+
+            if (!rawCodigo) continue;
+
+            const disponibleNum = parseInt(rawDisponible, 10);
+            const disponible = isNaN(disponibleNum) ? 0 : disponibleNum;
+            const actualizado = convertDateToISO(rawActualizado);
+
+            products.push({
+                codigo: rawCodigo,
+                nombre: rawNombre,
+                disponible: disponible,
+                actualizado: actualizado
+            });
+        }
+
+        console.log(`Processed ${products.length} products successfully.`);
+        invasCache = products;
+        invasCacheTime = Date.now();
+
+        return res.json(products);
+    } catch (error) {
+        console.error('INVAS Inventory API Error:', error);
+        return res.status(500).json({ error: 'Error interno del servidor', details: error.message });
+    }
+});
+
+app.get('/api/inventory-channels', async (req, res) => {
     try {
         console.log('\nIncoming Unified Inventory Request...');
         

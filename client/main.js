@@ -749,7 +749,7 @@ async function fetchInventory() {
     if (loading) loading.style.display = 'flex';
     
     try {
-        const res = await fetch(`${API_BASE}/inventory`);
+        const res = await fetch(`${API_BASE}/inventory-channels`);
         const data = await res.json();
         
         if (data.success && data.inventory) {
