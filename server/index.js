@@ -209,7 +209,7 @@ function normalizeMeliOrder(o) {
     const sku = items[0]?.sku || 'N/A';
     const ean = items[0]?.ean || 'N/A';
     return {
-        id: `ML-${o.id}`,
+        id: `ML-${o.pack_id || o.id}`,
         source: 'Mercado Libre',
         totalPrice: parseFloat(o.total_amount || 0),
         createdAt: o.date_created,
@@ -845,8 +845,18 @@ app.get('/api/meli-shipments', async (req, res) => {
         const ordersWithShipping = meliOrders.filter(o => o.shipping?.id);
         ordersWithShipping.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
+        // Deduplicate by shipping.id to avoid duplicate shipments (e.g. cart purchases grouped in a pack)
+        const uniqueOrders = [];
+        const seenShippingIds = new Set();
+        for (const o of ordersWithShipping) {
+            if (o.shipping?.id && !seenShippingIds.has(o.shipping.id)) {
+                seenShippingIds.add(o.shipping.id);
+                uniqueOrders.push(o);
+            }
+        }
+
         // Limit to max 20 to avoid rate limits
-        const targetOrders = ordersWithShipping.slice(0, 20);
+        const targetOrders = uniqueOrders.slice(0, 20);
 
         const activeShipments = [];
         await Promise.all(targetOrders.map(async (o) => {
@@ -857,7 +867,8 @@ app.get('/api/meli-shipments', async (req, res) => {
                     const status = shipmentData.status;
                     const substatus = shipmentData.substatus;
 
-                    if (status !== 'delivered' && status !== 'cancelled') {
+                    // Only show shipments that are in preparation (ready to ship or handling)
+                    if (status === 'ready_to_ship' || status === 'handling') {
                         activeShipments.push({
                             id: o.id,
                             createdAt: o.createdAt,
