@@ -942,7 +942,7 @@ function renderMeliShipments(shipments) {
                         <i data-lucide="${labelIcon}" style="width: 12px; height: 12px;"></i> ${labelStatusText}
                     </span>
                     <button class="btn-reprint" onclick="reprintMeliLabel('${o.shipping?.id}')">
-                        <i data-lucide="printer" style="width: 12px; height: 12px;"></i> Reimprimir etiqueta
+                        <i data-lucide="printer" style="width: 12px; height: 12px;"></i> ${isPrinted ? 'Reimprimir etiqueta' : 'Imprimir etiqueta'}
                     </button>
                 </div>
             </div>
