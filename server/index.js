@@ -866,9 +866,11 @@ app.get('/api/meli-shipments', async (req, res) => {
                 if (shipmentData) {
                     const status = shipmentData.status;
                     const substatus = shipmentData.substatus;
+                    const logisticType = shipmentData.logistic_type;
 
                     // Only show shipments that are in preparation (ready to ship or handling)
-                    if (status === 'ready_to_ship' || status === 'handling') {
+                    // and exclude fulfillment (Full) since those are processed by Mercado Libre directly
+                    if ((status === 'ready_to_ship' || status === 'handling') && logisticType !== 'fulfillment') {
                         activeShipments.push({
                             id: o.id,
                             createdAt: o.createdAt,
