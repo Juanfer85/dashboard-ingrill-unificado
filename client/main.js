@@ -1279,7 +1279,7 @@ function renderClaims(claims) {
                     <div class="claim-action-title">${statusText}</div>
                     <div class="claim-action-subtext">${subText}</div>
                     
-                    <div class="claim-message-preview">
+                    <div class="claim-message-preview" onclick="openAttendClaimModal('${claimId}')">
                         <div class="claim-message-avatar ${avatarClass}">${avatarInitials}</div>
                         <div class="claim-message-text">
                             <strong>${previewSender}:</strong> ${previewText}

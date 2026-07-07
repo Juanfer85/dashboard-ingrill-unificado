@@ -1014,9 +1014,19 @@
             align-items: center;
             margin-top: 0.25rem;
             min-width: 0;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s;
+        }
+        .claim-message-preview:hover {
+            background: rgba(255,255,255,0.05);
+            border-color: rgba(52, 131, 250, 0.4);
         }
         body[data-theme="light"] .claim-message-preview {
             background: rgba(0,0,0,0.01);
+        }
+        body[data-theme="light"] .claim-message-preview:hover {
+            background: rgba(0,0,0,0.03);
+            border-color: rgba(52, 131, 250, 0.4);
         }
         .claim-message-avatar {
             width: 24px;
