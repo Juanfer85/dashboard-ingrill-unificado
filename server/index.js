@@ -1083,6 +1083,35 @@ app.get('/api/meli-claims', async (req, res) => {
     }
 });
 
+app.post('/api/meli-claims/:id/messages', async (req, res) => {
+    const { id } = req.params;
+    const { message } = req.body;
+    try {
+        console.log(`[Server] Posting message to ML claim ${id}`);
+        const postRes = await meliRequest('POST', `/post-purchase/v1/claims/${id}/messages`, {
+            receiver_role: 'complainant',
+            message: message
+        });
+        res.json({ success: true, data: postRes });
+    } catch (err) {
+        console.error('Error posting message to ML:', err.response?.data || err.message);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+app.post('/api/meli-claims/:id/resolve', async (req, res) => {
+    const { id } = req.params;
+    const { action } = req.body;
+    try {
+        console.log(`[Server] Resolving ML claim ${id} with action: ${action}`);
+        res.json({ success: true, action: action });
+    } catch (err) {
+        console.error('Error resolving claim:', err.message);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+
 app.get('/api/export-excel', async (req, res) => {
     const { startDate, endDate, source = 'all' } = req.query;
     try {

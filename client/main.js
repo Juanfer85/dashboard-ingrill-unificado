@@ -1472,7 +1472,77 @@ function renderModalChat(claim) {
                 <span class="chat-bubble-meta">${m.time}</span>
             </div>
         `;
-    }).join('');
+}
+
+function closeAttendClaimModal() {
+    const modal = document.getElementById('attend-claim-modal');
+    if (modal) modal.style.display = "none";
+    window.currentModalClaimId = null;
+}
+
+async function sendModalChatMessage() {
+    const input = document.getElementById('modal-chat-input-text');
+    if (!input || !input.value.trim()) return;
+    const text = input.value.trim();
+    input.value = "";
+    
+    const claimId = window.currentModalClaimId;
+    if (!claimId) return;
+
+    if (!window.claimsSessionMessages.has(claimId)) {
+        window.claimsSessionMessages.set(claimId, []);
+    }
+    window.claimsSessionMessages.get(claimId).push({
+        sender: "Tú",
+        role: "seller",
+        text: text,
+        time: "Ahora mismo"
+    });
+
+    const claim = window.claimsData.find(c => c.id.toString() === claimId.toString());
+    if (claim) {
+        renderModalChat(claim);
+        filterClaims();
+        
+        // Scroll chat to bottom
+        const chatMessages = document.getElementById('modal-chat-messages');
+        if (chatMessages) chatMessages.scrollTop = chatMessages.scrollHeight;
+
+        try {
+            await fetch(`${API_BASE}/meli-claims/${claimId}/messages`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: text })
+            });
+        } catch (err) {
+            console.error('Error posting claim message to backend:', err);
+        }
+    }
+}
+
+async function resolveClaimAction(action) {
+    const claimId = window.currentModalClaimId;
+    if (!claimId) return;
+    
+    let actionWord = "reembolsar";
+    if (action === 'return') actionWord = "aceptar devolución";
+    else if (action === 'support') actionWord = "escalar el caso";
+    
+    if (!confirm(`¿Estás seguro que deseas ${actionWord} para este reclamo?`)) return;
+
+    window.claimsStatusOverrides.set(claimId, 'resolved');
+    closeAttendClaimModal();
+    filterClaims();
+
+    try {
+        await fetch(`${API_BASE}/meli-claims/${claimId}/resolve`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: action })
+        });
+    } catch (err) {
+        console.error('Error resolving claim in backend:', err);
+    }
 }
 
 // Global functions for inline handlers
@@ -1482,4 +1552,5 @@ window.resolveClaimAction = resolveClaimAction;
 window.toggleClaimsTag = toggleClaimsTag;
 window.clearClaimsFilter = clearClaimsFilter;
 window.fetchClaims = fetchClaims;
+
 
