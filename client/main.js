@@ -1401,11 +1401,7 @@ function openAttendClaimModal(claimId) {
     if (orderIdEl) orderIdEl.innerText = `Orden: #${claim.orderId}`;
     if (priceEl) priceEl.innerText = formatCurrency(claim.price);
     if (buyerEl) {
-        // Mock buyer names for standard mock claims
-        let bName = "Usuario ML";
-        if (claimId.toString() === "5033102536") bName = "Juan Pérez (juanperez123)";
-        else if (claimId.toString() === "5033102537") bName = "Luis García (lgarcia_spa)";
-        buyerEl.innerText = `Comprador: ${bName}`;
+        buyerEl.innerText = `Comprador: ${claim.buyerName || 'Usuario ML'}`;
     }
     
     // Set SVG image
@@ -1448,30 +1444,21 @@ function renderModalChat(claim) {
     if (!chatContainer) return;
     
     const claimId = claim.id;
+    let msgs = claim.messages || [];
     
-    // Default messages based on claims
-    let defaultMsgs = [];
-    if (claimId.toString() === "5033102536") {
-        defaultMsgs = [
-            { sender: "Juan Pérez", role: "buyer", text: "Hola, acabo de recibir el barril ahumador y asador mini basik. Sin embargo, viene abollado del lado derecho por el transporte y no veo la manija de madera de la tapa. Adjunto fotos de cómo llegó la caja dañada.", time: "Ayer 15:32" },
-            { sender: "Mercado Libre", role: "mediator", text: "¿Cuál opción prefieres para resolver el reclamo? El caso ha sido escalado para revisión por nuestro asistente de posventa. Ofrecer un reembolso o el retorno son las alternativas ideales.", time: "Ayer 15:35" }
-        ];
-    } else if (claimId.toString() === "5033102537") {
-        defaultMsgs = [
-            { sender: "Luis García", role: "buyer", text: "Hola buenas tardes, el asador para 20 personas llegó hoy pero está incompleto. No trae el kit de ganchos ni el termómetro para la tapa. Por favor su ayuda para enviarme los accesorios faltantes.", time: "Hace 2 días 11:20" },
-            { sender: "Luis García", role: "buyer", text: "Hola bueno... ¿hay alguna novedad sobre mi caso? Agradezco una respuesta rápida para poder usarlo este fin de semana.", time: "Hoy 09:15" }
-        ];
-    } else {
-        defaultMsgs = [
-            { sender: "Comprador", role: "buyer", text: "Hola, tengo un inconveniente con el producto que compré. " + claim.reasonText, time: "Hace 1 día" },
-            { sender: "Mercado Libre", role: "mediator", text: "El reclamo está abierto. Por favor conversa con el comprador para ofrecer una solución.", time: "Hace 1 día" }
-        ];
+    // Fallback if no messages are present
+    if (msgs.length === 0 && claim.lastMessage) {
+        msgs = [{
+            sender: claim.lastMessage.sender,
+            role: claim.lastMessage.sender === 'Comprador' ? 'buyer' : (claim.lastMessage.sender === 'Tú' ? 'seller' : 'mediator'),
+            text: claim.lastMessage.text,
+            time: 'Hace un momento'
+        }];
     }
     
     // Get session messages for this claim
     const sessionMsgs = window.claimsSessionMessages.get(claimId) || [];
-    
-    const allMsgs = [...defaultMsgs, ...sessionMsgs];
+    const allMsgs = [...msgs, ...sessionMsgs];
     
     chatContainer.innerHTML = allMsgs.map(m => {
         let bubbleClass = "buyer";

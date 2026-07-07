@@ -999,14 +999,40 @@ app.get('/api/meli-claims', async (req, res) => {
                         }
                     }
 
+                    let buyerName = "Usuario Mercado Libre";
+                    if (orderInfo && orderInfo.buyer) {
+                        const b = orderInfo.buyer;
+                        buyerName = `${b.first_name || ''} ${b.last_name || ''} (${b.nickname || ''})`.trim() || "Usuario ML";
+                    }
+
                     let lastMsgText = "Sin mensajes recientes";
                     let lastMsgSender = "Sistema";
+                    let chatMessages = [];
                     try {
                         const messages = await meliRequest('GET', `/post-purchase/v1/claims/${c.id}/messages`);
                         if (messages && messages.length > 0) {
                             const last = messages[messages.length - 1];
                             lastMsgText = last.message || lastMsgText;
                             lastMsgSender = last.sender_role === 'complainant' ? 'Comprador' : (last.sender_role === 'respondent' ? 'Tú' : 'Mediador');
+                            
+                            chatMessages = messages.map(m => {
+                                let role = 'mediator';
+                                let sender = 'Mercado Libre';
+                                if (m.sender_role === 'complainant') {
+                                    role = 'buyer';
+                                    sender = 'Comprador';
+                                } else if (m.sender_role === 'respondent') {
+                                    role = 'seller';
+                                    sender = 'Tú';
+                                }
+                                const timeStr = dayjs(m.date_created).tz(SHOP_TZ).format('DD/MM HH:mm');
+                                return {
+                                    sender: sender,
+                                    role: role,
+                                    text: m.message,
+                                    time: timeStr
+                                };
+                            });
                         }
                     } catch (msgErr) {
                         // ignore
@@ -1018,6 +1044,7 @@ app.get('/api/meli-claims', async (req, res) => {
                     resolvedClaims.push({
                         id: c.id,
                         orderId: orderInfo ? orderInfo.id.toString() : (details ? details.resource_id.toString() : "N/A"),
+                        buyerName: buyerName,
                         productTitle: orderInfo && orderInfo.order_items && orderInfo.order_items[0] ? orderInfo.order_items[0].item.title : "Producto Mercado Libre",
                         price: orderInfo ? parseFloat(orderInfo.total_amount) : 0,
                         quantity: orderInfo && orderInfo.order_items && orderInfo.order_items[0] ? orderInfo.order_items[0].quantity : 1,
@@ -1036,6 +1063,7 @@ app.get('/api/meli-claims', async (req, res) => {
                             sender: lastMsgSender,
                             text: lastMsgText
                         },
+                        messages: chatMessages,
                         badges: ["ML"]
                     });
                 } catch (detErr) {
@@ -1046,7 +1074,7 @@ app.get('/api/meli-claims', async (req, res) => {
 
         res.json({
             success: true,
-            claims: [...resolvedClaims, ...mockClaims]
+            claims: resolvedClaims
         });
 
     } catch (error) {
