@@ -43,14 +43,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const tabSalesBtn = document.getElementById('tab-sales');
     const tabInventoryBtn = document.getElementById('tab-inventory');
     const tabInvasBtn = document.getElementById('tab-invas');
+    const tabClaimsBtn = document.getElementById('tab-claims');
+    
     const salesContent = document.getElementById('sales-tab-content');
     const inventoryContent = document.getElementById('inventory-tab-content');
     const invasContent = document.getElementById('invas-tab-content');
+    const claimsContent = document.getElementById('claims-tab-content');
     
     const tabs = [
         { btn: tabSalesBtn, content: salesContent, onShow: null },
         { btn: tabInventoryBtn, content: inventoryContent, onShow: () => { if (!window.inventoryData) fetchInventory(); } },
-        { btn: tabInvasBtn, content: invasContent, onShow: () => { if (!window.invasData) fetchInvasInventory(); } }
+        { btn: tabInvasBtn, content: invasContent, onShow: () => { if (!window.invasData) fetchInvasInventory(); } },
+        { btn: tabClaimsBtn, content: claimsContent, onShow: () => { fetchClaims(); } }
     ];
 
     tabs.forEach(tab => {
@@ -101,6 +105,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 (item.nombre || '').toLowerCase().includes(query)
             );
             renderInvasInventory(filtered);
+        });
+    }
+
+    const claimsSearchInput = document.getElementById('claims-search');
+    if (claimsSearchInput) {
+        claimsSearchInput.addEventListener('input', () => {
+            filterClaims();
         });
     }
 });
@@ -1055,3 +1066,433 @@ function renderInvasInventory(items) {
         `;
     }).join('');
 }
+
+// ==========================================
+// FUNCIONES Y MÓDULOS DE RECLAMOS ML (POSVENTA)
+// ==========================================
+window.activeClaimsTags = new Set();
+window.claimsData = [];
+window.claimsSessionMessages = new Map();
+window.claimsStatusOverrides = new Map();
+
+async function fetchClaims() {
+    const loading = document.getElementById('loading');
+    if (loading) loading.style.display = 'flex';
+    
+    try {
+        const res = await fetch(`${API_BASE}/meli-claims`);
+        const data = await res.json();
+        
+        if (data && data.success) {
+            window.claimsData = data.claims;
+            filterClaims();
+        } else {
+            console.error('Error in fetchClaims response:', data);
+        }
+    } catch (err) {
+        console.error('Fetch Claims Error:', err);
+    } finally {
+        if (loading) loading.style.display = 'none';
+        lucide.createIcons();
+    }
+}
+
+function renderClaims(claims) {
+    const container = document.getElementById('claims-list');
+    const recordCountEl = document.getElementById('claims-record-count');
+    const badgeCountEl = document.getElementById('claims-badge-count');
+    const metricsToAttendCountEl = document.getElementById('metrics-to-attend-count');
+    
+    if (!container) return;
+    
+    // Count active/opened claims
+    const activeClaims = claims.filter(c => {
+        const claimId = c.id;
+        const override = window.claimsStatusOverrides.get(claimId);
+        return override !== 'resolved' && c.status === 'opened';
+    });
+
+    if (recordCountEl) {
+        recordCountEl.innerText = `${claims.length} venta${claims.length === 1 ? '' : 's'}`;
+    }
+    if (badgeCountEl) {
+        badgeCountEl.innerText = activeClaims.length;
+    }
+    if (metricsToAttendCountEl) {
+        metricsToAttendCountEl.innerText = activeClaims.length;
+    }
+
+    if (claims.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 4rem; color: var(--text-secondary); background: var(--card-bg); border-radius: 1.5rem; border: 1px dashed var(--border);">
+                <i data-lucide="check-circle" style="width: 48px; height: 48px; color: #10b981; margin-bottom: 1rem;"></i>
+                <div style="font-weight: 700; font-size: 1.1rem; color: var(--text-primary);">¡Sin reclamos pendientes!</div>
+                <p style="font-size: 0.85rem; margin-top: 0.5rem; max-width: 400px; margin-left: auto; margin-right: auto;">
+                    No tienes reclamos abiertos que coincidan con la búsqueda o filtros aplicados. ¡Excelente servicio al cliente!
+                </p>
+            </div>
+        `;
+        lucide.createIcons();
+        return;
+    }
+
+    const svgMiniBasik = `
+        <svg width="48" height="60" viewBox="0 0 48 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <linearGradient id="silver-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#8a8d90" />
+                    <stop offset="50%" stop-color="#d5d7db" />
+                    <stop offset="100%" stop-color="#707275" />
+                </linearGradient>
+            </defs>
+            <rect x="12" y="18" width="24" height="34" rx="2" fill="url(#silver-grad)" stroke="#4b4d4f" stroke-width="1.5" />
+            <path d="M12 18 C12 10, 36 10, 36 18 Z" fill="url(#silver-grad)" stroke="#4b4d4f" stroke-width="1.5" />
+            <rect x="20" y="6" width="8" height="4" rx="1" fill="#a0522d" stroke="#5c2e16" stroke-width="1" />
+            <line x1="22" y1="10" x2="22" y2="12" stroke="#4b4d4f" stroke-width="1.5" />
+            <line x1="26" y1="10" x2="26" y2="12" stroke="#4b4d4f" stroke-width="1.5" />
+            <circle cx="24" cy="14" r="2.5" fill="#f4f4f5" stroke="#4b4d4f" stroke-width="1" />
+            <line x1="24" y1="14" x2="25.5" y2="12.5" stroke="#ef4444" stroke-width="0.75" />
+            <path d="M14 52 L10 58" stroke="#374151" stroke-width="2" stroke-linecap="round" />
+            <path d="M34 52 L38 58" stroke="#374151" stroke-width="2" stroke-linecap="round" />
+            <path d="M24 52 L24 59" stroke="#374151" stroke-width="2" stroke-linecap="round" />
+            <path d="M12 28 H8 V32 H12" stroke="#4b4d4f" stroke-width="1.5" fill="none" />
+            <path d="M36 28 H40 V32 H36" stroke="#4b4d4f" stroke-width="1.5" fill="none" />
+            <text x="24" y="36" fill="#374151" font-size="5" font-weight="bold" text-anchor="middle" opacity="0.3" font-family="sans-serif">INGRILL</text>
+        </svg>
+    `;
+
+    const svgBbqMovil = `
+        <svg width="48" height="60" viewBox="0 0 48 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <linearGradient id="dark-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#1f2937" />
+                    <stop offset="50%" stop-color="#4b5563" />
+                    <stop offset="100%" stop-color="#111827" />
+                </linearGradient>
+            </defs>
+            <rect x="10" y="16" width="28" height="34" rx="3" fill="url(#dark-grad)" stroke="#0f172a" stroke-width="1.5" />
+            <path d="M10 16 C10 8, 38 8, 38 16 Z" fill="url(#dark-grad)" stroke="#0f172a" stroke-width="1.5" />
+            <path d="M18 10 H30" stroke="#f97316" stroke-width="2" stroke-linecap="round" />
+            <line x1="20" y1="10" x2="20" y2="12" stroke="#0f172a" stroke-width="1.5" />
+            <line x1="28" y1="10" x2="28" y2="12" stroke="#0f172a" stroke-width="1.5" />
+            <line x1="14" y1="50" x2="10" y2="58" stroke="#374151" stroke-width="2" />
+            <line x1="34" y1="50" x2="38" y2="58" stroke="#374151" stroke-width="2" />
+            <circle cx="10" cy="58" r="3" fill="#1f2937" stroke="#111827" stroke-width="1" />
+            <circle cx="10" cy="58" r="1" fill="#9ca3af" />
+            <circle cx="38" cy="58" r="3" fill="#1f2937" stroke="#111827" stroke-width="1" />
+            <circle cx="38" cy="58" r="1" fill="#9ca3af" />
+            <line x1="12" y1="54" x2="36" y2="54" stroke="#4b5563" stroke-width="1.5" />
+            <path d="M38 24 H44 V26 H38" stroke="#4b5563" stroke-width="1.5" fill="none" />
+            <rect x="42" y="22" width="4" height="8" rx="0.5" fill="#d97706" opacity="0.8" />
+        </svg>
+    `;
+
+    const svgDefaultItem = `
+        <svg width="48" height="60" viewBox="0 0 48 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="12" y="20" width="24" height="24" rx="2" fill="#27272a" stroke="#4b4d4f" stroke-width="1.5" />
+            <path d="M12 20 L24 10 L36 20 Z" fill="#3f3f46" stroke="#4b4d4f" stroke-width="1.5" />
+            <circle cx="24" cy="32" r="4" fill="#a1a1aa" />
+        </svg>
+    `;
+
+    container.innerHTML = claims.map(c => {
+        const claimId = c.id;
+        const override = window.claimsStatusOverrides.get(claimId);
+        
+        let statusText = c.actionText;
+        let subText = c.subtext;
+        let showRepAlert = c.highlight;
+        let isResolved = false;
+        
+        if (override === 'resolved') {
+            statusText = "Reclamo cerrado y resuelto";
+            subText = "El caso ha sido solucionado. No afecta tu reputación.";
+            showRepAlert = null;
+            isResolved = true;
+        }
+
+        // Determinar imagen del producto
+        let pImgSvg = svgDefaultItem;
+        const titleLower = c.productTitle.toLowerCase();
+        if (titleLower.includes('mini')) {
+            pImgSvg = svgMiniBasik;
+        } else if (titleLower.includes('bbq') || titleLower.includes('20 personas') || titleLower.includes('asador')) {
+            pImgSvg = svgBbqMovil;
+        }
+
+        // Configurar badges
+        const badgesHtml = (c.badges || []).map(b => {
+            if (b === 'FLEX') return `<span class="badge badge-flex">FLEX</span>`;
+            return `<span class="badge badge-meli">ML</span>`;
+        }).join('');
+
+        // Configurar mensaje de chat preview
+        // Check if there are session messages
+        const sessionMsgs = window.claimsSessionMessages.get(claimId) || [];
+        let previewSender = c.lastMessage.sender;
+        let previewText = c.lastMessage.text;
+        
+        if (sessionMsgs.length > 0) {
+            const lastSessionMsg = sessionMsgs[sessionMsgs.length - 1];
+            previewSender = lastSessionMsg.sender;
+            previewText = lastSessionMsg.text;
+        }
+
+        // Avatar inicial bubble
+        let avatarInitials = "ML";
+        if (previewSender !== "Mercado Libre" && previewSender !== "Sistema" && previewSender !== "Tú") {
+            const parts = previewSender.split(' ');
+            avatarInitials = parts.map(p => p.charAt(0)).slice(0, 2).join('').toUpperCase();
+        } else if (previewSender === "Tú") {
+            avatarInitials = "YO";
+        }
+
+        const avatarClass = (previewSender === "Mercado Libre" || previewSender === "Sistema") ? "mediator" : "";
+
+        // Reason Icon
+        const isDamaged = c.reasonId === 'damaged_product';
+        const reasonIconClass = isDamaged ? "" : "incomplete";
+
+        return `
+            <div class="claim-card" id="claim-card-${claimId}">
+                <!-- Left Product Column -->
+                <div class="claim-product-col">
+                    <div class="claim-product-img">${pImgSvg}</div>
+                    <div class="claim-product-info">
+                        <span class="claim-order-num">#${c.orderId}</span>
+                        <h4 class="claim-product-title">${c.productTitle}</h4>
+                        <span class="claim-product-price">
+                            ${c.quantity} unidad${c.quantity === 1 ? '' : 's'} &bull; <strong>${formatCurrency(c.price)}</strong>
+                        </span>
+                        <div class="claim-badge-container">${badgesHtml}</div>
+                    </div>
+                </div>
+
+                <!-- Middle Status and Message Column -->
+                <div class="claim-status-col">
+                    <div class="claim-reason-header">
+                        <span class="claim-reason-icon ${reasonIconClass}">
+                            <i data-lucide="${isDamaged ? 'alert-triangle' : 'help-circle'}" style="width: 12px; height: 12px;"></i>
+                        </span>
+                        <span>${c.reasonText}</span>
+                    </div>
+                    <div class="claim-action-title">${statusText}</div>
+                    <div class="claim-action-subtext">${subText}</div>
+                    
+                    <div class="claim-message-preview">
+                        <div class="claim-message-avatar ${avatarClass}">${avatarInitials}</div>
+                        <div class="claim-message-text">
+                            <strong>${previewSender}:</strong> ${previewText}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Action Column -->
+                <div class="claim-action-col">
+                    <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+                        <div class="claim-reputation-alert">
+                            ${showRepAlert ? `<i data-lucide="shield-alert" style="width: 14px; height: 14px;"></i> ${showRepAlert}` : ''}
+                        </div>
+                        <button class="claim-menu-btn" onclick="alert('Acciones de administración del reclamo')">
+                            <i data-lucide="more-vertical" style="width: 16px; height: 16px;"></i>
+                        </button>
+                    </div>
+                    
+                    ${isResolved ? `
+                        <button class="btn-attend-claim" style="background:#27272a; color:var(--text-secondary); cursor:default;" disabled>
+                            Cerrado
+                        </button>
+                    ` : `
+                        <button class="btn-attend-claim" onclick="openAttendClaimModal('${claimId}')">
+                            Atender reclamo
+                        </button>
+                    `}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    lucide.createIcons();
+}
+
+function filterClaims() {
+    const query = document.getElementById('claims-search')?.value.toLowerCase().trim() || "";
+    
+    let filtered = window.claimsData;
+    
+    // Apply search query
+    if (query) {
+        filtered = filtered.filter(c => 
+            c.orderId.includes(query) ||
+            c.productTitle.toLowerCase().includes(query) ||
+            c.reasonText.toLowerCase().includes(query)
+        );
+    }
+    
+    // Apply tags
+    if (window.activeClaimsTags.size > 0) {
+        filtered = filtered.filter(c => {
+            let matches = false;
+            if (window.activeClaimsTags.has('reputation') && c.highlight) matches = true;
+            if (window.activeClaimsTags.has('damaged') && c.reasonId === 'damaged_product') matches = true;
+            if (window.activeClaimsTags.has('incomplete') && c.reasonId === 'incomplete_product') matches = true;
+            if (window.activeClaimsTags.has('bot') && c.lastMessage && c.lastMessage.role === 'mediator') matches = true;
+            return matches;
+        });
+    }
+    
+    renderClaims(filtered);
+}
+
+function toggleClaimsTag(tag) {
+    const btn = document.getElementById(`tag-${tag}`);
+    if (!btn) return;
+    
+    if (window.activeClaimsTags.has(tag)) {
+        window.activeClaimsTags.delete(tag);
+        btn.classList.remove('active');
+    } else {
+        window.activeClaimsTags.add(tag);
+        btn.classList.add('active');
+    }
+    
+    filterClaims();
+}
+
+function clearClaimsFilter() {
+    const searchInput = document.getElementById('claims-search');
+    if (searchInput) searchInput.value = "";
+    
+    // Remove active tag styling
+    window.activeClaimsTags.clear();
+    ['reputation', 'incomplete', 'damaged', 'bot'].forEach(tag => {
+        document.getElementById(`tag-${tag}`)?.classList.remove('active');
+    });
+    
+    // Hide filter badge
+    const badge = document.getElementById('filter-badge-to-attend');
+    if (badge) badge.style.display = "none";
+    
+    filterClaims();
+}
+
+// Modal handling
+window.currentModalClaimId = null;
+
+function openAttendClaimModal(claimId) {
+    const claim = window.claimsData.find(c => c.id.toString() === claimId.toString());
+    if (!claim) return;
+    
+    window.currentModalClaimId = claimId;
+    
+    // Populate header
+    document.getElementById('modal-claim-title').innerHTML = `
+        <i data-lucide="alert-circle" style="color: #ef4444; width:20px; height:20px;"></i> Atender Reclamo #${claimId}
+    `;
+    
+    // Populate product details
+    const titleEl = document.getElementById('modal-product-title');
+    const orderIdEl = document.getElementById('modal-order-id');
+    const priceEl = document.getElementById('modal-product-price');
+    const buyerEl = document.getElementById('modal-buyer-name');
+    const imgContainer = document.getElementById('modal-product-img-container');
+    
+    if (titleEl) titleEl.innerText = claim.productTitle;
+    if (orderIdEl) orderIdEl.innerText = `Orden: #${claim.orderId}`;
+    if (priceEl) priceEl.innerText = formatCurrency(claim.price);
+    if (buyerEl) {
+        // Mock buyer names for standard mock claims
+        let bName = "Usuario ML";
+        if (claimId.toString() === "5033102536") bName = "Juan Pérez (juanperez123)";
+        else if (claimId.toString() === "5033102537") bName = "Luis García (lgarcia_spa)";
+        buyerEl.innerText = `Comprador: ${bName}`;
+    }
+    
+    // Set SVG image
+    const svgMiniBasik = `
+        <svg width="48" height="48" viewBox="0 0 48 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="12" y="18" width="24" height="34" rx="2" fill="#d5d7db" stroke="#4b4d4f" stroke-width="1.5" />
+            <path d="M12 18 C12 10, 36 10, 36 18 Z" fill="#d5d7db" stroke="#4b4d4f" stroke-width="1.5" />
+            <circle cx="24" cy="14" r="2.5" fill="#f4f4f5" stroke="#4b4d4f" stroke-width="1" />
+        </svg>
+    `;
+    const svgBbqMovil = `
+        <svg width="48" height="48" viewBox="0 0 48 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="10" y="16" width="28" height="34" rx="3" fill="#4b5563" stroke="#0f172a" stroke-width="1.5" />
+            <path d="M10 16 C10 8, 38 8, 38 16 Z" fill="#4b5563" stroke="#0f172a" stroke-width="1.5" />
+        </svg>
+    `;
+    
+    if (imgContainer) {
+        imgContainer.innerHTML = claim.productTitle.toLowerCase().includes('mini') ? svgMiniBasik : svgBbqMovil;
+    }
+    
+    // Load and render chat messages
+    renderModalChat(claim);
+    
+    // Display Modal
+    const modal = document.getElementById('attend-claim-modal');
+    if (modal) modal.style.display = "flex";
+    
+    lucide.createIcons();
+    
+    // Scroll chat to bottom
+    setTimeout(() => {
+        const chatMessages = document.getElementById('modal-chat-messages');
+        if (chatMessages) chatMessages.scrollTop = chatMessages.scrollHeight;
+    }, 50);
+}
+
+function renderModalChat(claim) {
+    const chatContainer = document.getElementById('modal-chat-messages');
+    if (!chatContainer) return;
+    
+    const claimId = claim.id;
+    
+    // Default messages based on claims
+    let defaultMsgs = [];
+    if (claimId.toString() === "5033102536") {
+        defaultMsgs = [
+            { sender: "Juan Pérez", role: "buyer", text: "Hola, acabo de recibir el barril ahumador y asador mini basik. Sin embargo, viene abollado del lado derecho por el transporte y no veo la manija de madera de la tapa. Adjunto fotos de cómo llegó la caja dañada.", time: "Ayer 15:32" },
+            { sender: "Mercado Libre", role: "mediator", text: "¿Cuál opción prefieres para resolver el reclamo? El caso ha sido escalado para revisión por nuestro asistente de posventa. Ofrecer un reembolso o el retorno son las alternativas ideales.", time: "Ayer 15:35" }
+        ];
+    } else if (claimId.toString() === "5033102537") {
+        defaultMsgs = [
+            { sender: "Luis García", role: "buyer", text: "Hola buenas tardes, el asador para 20 personas llegó hoy pero está incompleto. No trae el kit de ganchos ni el termómetro para la tapa. Por favor su ayuda para enviarme los accesorios faltantes.", time: "Hace 2 días 11:20" },
+            { sender: "Luis García", role: "buyer", text: "Hola bueno... ¿hay alguna novedad sobre mi caso? Agradezco una respuesta rápida para poder usarlo este fin de semana.", time: "Hoy 09:15" }
+        ];
+    } else {
+        defaultMsgs = [
+            { sender: "Comprador", role: "buyer", text: "Hola, tengo un inconveniente con el producto que compré. " + claim.reasonText, time: "Hace 1 día" },
+            { sender: "Mercado Libre", role: "mediator", text: "El reclamo está abierto. Por favor conversa con el comprador para ofrecer una solución.", time: "Hace 1 día" }
+        ];
+    }
+    
+    // Get session messages for this claim
+    const sessionMsgs = window.claimsSessionMessages.get(claimId) || [];
+    
+    const allMsgs = [...defaultMsgs, ...sessionMsgs];
+    
+    chatContainer.innerHTML = allMsgs.map(m => {
+        let bubbleClass = "buyer";
+        if (m.role === "mediator") bubbleClass = "mediator";
+        else if (m.role === "seller") bubbleClass = "seller";
+        
+        return `
+            <div class="chat-bubble ${bubbleClass}">
+                <div style="font-weight: 700; font-size: 0.75rem; margin-bottom: 0.15rem;">${m.sender}</div>
+                <div>${m.text}</div>
+                <span class="chat-bubble-meta">${m.time}</span>
+            </div>
+        `;
+    }).join('');
+}
+
+// Global functions for inline handlers
+window.closeAttendClaimModal = closeAttendClaimModal;
+window.sendModalChatMessage = sendModalChatMessage;
+window.resolveClaimAction = resolveClaimAction;
+window.toggleClaimsTag = toggleClaimsTag;
+window.clearClaimsFilter = clearClaimsFilter;
+window.fetchClaims = fetchClaims;
+
