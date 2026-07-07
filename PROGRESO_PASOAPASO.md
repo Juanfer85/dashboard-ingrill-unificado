@@ -168,4 +168,6 @@
 152. Implementada la lógica en `client/main.js` para consultar el endpoint `/api/meli-claims`, renderizar las tarjetas y habilitar el buscador y los tags interactivos rápidos.
 153. Diseñados y renderizados assets vectoriales inline (SVG) premium e interactivos para el Barril Mini Basik y el BBQ Portátil Móvil para 20 personas dentro de las tarjetas de reclamo.
 154. Creado un modal flotante e interactivo de 'Atender Reclamo' con chat funcional, respuestas simuladas del mediador y acciones rápidas para ofrecer reembolsos, aceptar devoluciones o escalar el caso.
+155. Corregida la desconfiguración del layout de la tarjeta de reclamos (`.claim-card`) en CSS: se implementó `minmax(0, 1fr)` en las columnas del grid y se aplicaron reglas de `min-width: 0` y flexbox a la previsualización del chat para forzar el truncamiento con puntos suspensivos (`text-overflow: ellipsis`) de los mensajes largos de Mercado Libre, impidiendo que empujaran la columna de acciones fuera de la pantalla. Todos los cambios se publicaron en GitHub y se actualizaron automáticamente en Vercel.
+
 
