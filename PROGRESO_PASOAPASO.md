@@ -178,6 +178,7 @@
 162. Agregado un comentario de versión al inicio de `client/main.js` para obligar al CDN de Vercel a regenerar y distribuir el archivo con los cambios recientes.
 163. Corregida la función `initializeFilters` en `client/main.js` para inicializar defensivamente las fechas y evitar un crash de JavaScript si el CDN de Flatpickr no está cargado (causa de los datos en cero al entrar). Se incrementó la versión a `v=15` en `index.html`.
 164. Agregados polyfills globales para las librerías CDN externas `lucide` y `Chart` al inicio del script para evitar ReferenceErrors si fallan al descargar en el navegador del cliente. Adicionalmente, se renombró el script principal de `main.js` a `dashboard-main.js` para saltar cualquier caché a nivel de CDN/Edge de Vercel y del navegador.
+165. Corregido un SyntaxError por un paréntesis faltante en el mapeo del chat de mediación de la sección reclamos dentro de `client/dashboard-main.js` (causa por la cual el frontend de la app colapsaba por completo al cargar). Se incrementó la versión a `v=16.2` en `index.html` para forzar la recarga del archivo corregido.
 
 
 

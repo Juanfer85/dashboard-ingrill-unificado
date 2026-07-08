@@ -1,4 +1,4 @@
-// v=16.1 - polyfills de CDNs y fallback de fechas robusto activo - renamed
+// v=16.2 - polyfills de CDNs, fallback de fechas y correccion de sintaxis activa
 window.lucide = window.lucide || { createIcons: () => { console.warn("Lucide no cargó."); } };
 if (typeof Chart === 'undefined') {
     window.Chart = class DummyChart {
@@ -1509,6 +1509,7 @@ function renderModalChat(claim) {
                 <span class="chat-bubble-meta">${m.time}</span>
             </div>
         `;
+    }).join('');
 }
 
 function closeAttendClaimModal() {
