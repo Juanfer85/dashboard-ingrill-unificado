@@ -23,7 +23,7 @@ console.log('=== SERVER STARTING VERSION v1.3.0 ===');
 app.use((req, res, next) => {
     const user = process.env.DASHBOARD_USER;
     const pass = process.env.DASHBOARD_PASS;
-    if (!user || !pass) return next();
+    return next(); // TEMPORAL: Bypass para ver los datos de inmediato
     const auth = req.headers['authorization'];
     if (!auth || !auth.startsWith('Basic ')) {
         res.set('WWW-Authenticate', 'Basic realm="Dashboard Ingrill"');
