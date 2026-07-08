@@ -1,3 +1,4 @@
+// v=14 - fallback de fechas robusto activo
 const API_BASE = '/api';
 let trendChart = null;
 let donutChart = null;
