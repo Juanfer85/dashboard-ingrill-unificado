@@ -147,16 +147,29 @@ async function fetchMeliShipments() {
 async function fetchData() {
     const loading = document.getElementById('loading');
     const source = document.getElementById('source-select').value;
-    const startDate = document.getElementById('date-start').value;
-    const endDate = document.getElementById('date-end').value;
+
+    // Obtener fechas con fallback robusto: si Flatpickr no inicializó, usar mes actual por defecto
+    let startDate = document.getElementById('date-start').value;
+    let endDate = document.getElementById('date-end').value;
+
+    // Validar que sean fechas reales en formato YYYY-MM-DD
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(startDate)) {
+        const now = new Date();
+        startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2,'0')}-01`;
+    }
+    if (!dateRegex.test(endDate)) {
+        const now = new Date();
+        endDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+    }
 
     loading.style.display = 'flex';
 
     try {
         const url = new URL(`${API_BASE}/dashboard`, window.location.origin);
         if (source) url.searchParams.append('source', source);
-        if (startDate) url.searchParams.append('startDate', startDate);
-        if (endDate) url.searchParams.append('endDate', endDate);
+        url.searchParams.append('startDate', startDate);
+        url.searchParams.append('endDate', endDate);
 
         const res = await fetch(url);
         const data = await res.json();
