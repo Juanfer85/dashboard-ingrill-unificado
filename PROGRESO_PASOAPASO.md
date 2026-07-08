@@ -176,7 +176,7 @@
 160. Implementado el fallback de fechas robusto en `client/main.js` (`fetchData`) usando expresiones regulares para validar si Flatpickr no se inicializa (mostrando `dd/mm/aaaa`), calculando automáticamente el rango del mes actual para que la API siempre reciba fechas válidas.
 161. Incrementada la versión de `main.js` a `v=14` en `client/index.html` para forzar al navegador a limpiar el caché y descargar el código nuevo.
 162. Agregado un comentario de versión al inicio de `client/main.js` para obligar al CDN de Vercel a regenerar y distribuir el archivo con los cambios recientes.
-
+163. Corregida la función `initializeFilters` en `client/main.js` para inicializar defensivamente las fechas y evitar un crash de JavaScript si el CDN de Flatpickr no está cargado (causa de los datos en cero al entrar). Se incrementó la versión a `v=15` en `index.html`.
 
 
 

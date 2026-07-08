@@ -1,4 +1,4 @@
-// v=14 - fallback de fechas robusto activo
+// v=15 - fallback de fechas y Flatpickr defensivo activo
 const API_BASE = '/api';
 let trendChart = null;
 let donutChart = null;
@@ -121,16 +121,31 @@ function initializeFilters() {
     const now = new Date();
     const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
     
-    // Flatpickr setup
-    const fpConfig = {
-        locale: 'es',
-        dateFormat: 'Y-m-d',
-        onChange: fetchData,
-        disableMobile: "true"
+    const formatDate = (d) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const r = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${r}`;
     };
 
-    flatpickr("#date-start", { ...fpConfig, defaultDate: firstDay });
-    flatpickr("#date-end", { ...fpConfig, defaultDate: now });
+    const startInput = document.getElementById('date-start');
+    const endInput = document.getElementById('date-end');
+
+    if (startInput) startInput.value = formatDate(firstDay);
+    if (endInput) endInput.value = formatDate(now);
+
+    if (typeof flatpickr !== 'undefined') {
+        const fpConfig = {
+            locale: 'es',
+            dateFormat: 'Y-m-d',
+            onChange: fetchData,
+            disableMobile: "true"
+        };
+        flatpickr("#date-start", fpConfig);
+        flatpickr("#date-end", fpConfig);
+    } else {
+        console.warn("Flatpickr is not loaded, using native HTML5 date inputs instead.");
+    }
 }
 
 async function fetchMeliShipments() {
