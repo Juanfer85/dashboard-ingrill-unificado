@@ -1,4 +1,12 @@
-// v=15 - fallback de fechas y Flatpickr defensivo activo
+// v=16.1 - polyfills de CDNs y fallback de fechas robusto activo - renamed
+window.lucide = window.lucide || { createIcons: () => { console.warn("Lucide no cargó."); } };
+if (typeof Chart === 'undefined') {
+    window.Chart = class DummyChart {
+        constructor() { console.warn("Chart.js no cargó."); }
+        destroy() {}
+    };
+}
+
 const API_BASE = '/api';
 let trendChart = null;
 let donutChart = null;

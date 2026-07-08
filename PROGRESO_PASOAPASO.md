@@ -177,6 +177,7 @@
 161. Incrementada la versión de `main.js` a `v=14` en `client/index.html` para forzar al navegador a limpiar el caché y descargar el código nuevo.
 162. Agregado un comentario de versión al inicio de `client/main.js` para obligar al CDN de Vercel a regenerar y distribuir el archivo con los cambios recientes.
 163. Corregida la función `initializeFilters` en `client/main.js` para inicializar defensivamente las fechas y evitar un crash de JavaScript si el CDN de Flatpickr no está cargado (causa de los datos en cero al entrar). Se incrementó la versión a `v=15` en `index.html`.
+164. Agregados polyfills globales para las librerías CDN externas `lucide` y `Chart` al inicio del script para evitar ReferenceErrors si fallan al descargar en el navegador del cliente. Adicionalmente, se renombró el script principal de `main.js` a `dashboard-main.js` para saltar cualquier caché a nivel de CDN/Edge de Vercel y del navegador.
 
 
 
