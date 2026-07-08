@@ -1,6 +1,11 @@
 {
   "name": "dashboard-ingrill-unificado",
   "version": "1.0.0",
+  "scripts": {
+    "test": "cd server && node tests/test_vm_syntax.js && node tests/test_contract.js && node tests/test_kpi_aggregators.js",
+    "sync-static": "node scripts/sync-static.js",
+    "sync-static:clean": "node scripts/sync-static.js --clean"
+  },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
     "axios": "^1.6.0",

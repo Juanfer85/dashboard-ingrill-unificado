@@ -54,6 +54,11 @@ app.get('/api/health', (req, res) => {
 app.use(cors());
 app.use(express.json());
 
+// ─── Caché y deduplicación de peticiones ───────────────────────────────────
+const dashboardCache = new Map();  // key → { data, timestamp }
+const inFlightMap   = new Map();  // key → Promise en curso
+const CACHE_TTL_MS  = 60 * 1000; // 1 minuto
+
 const termsMap = {
     'Mini': ['barril', 'mini'],
     'Pequeño Basik': ['barril', 'pequeño', 'basik'],
@@ -360,6 +365,40 @@ async function fetchFilteredOrders(rawStartDate, rawEndDate, source = 'all') {
     return filteredOrders;
 }
 
+// ─── Wrapper cacheado para fetchFilteredOrders ─────────────────────────────
+async function fetchFilteredOrdersCached(rawStartDate, rawEndDate, source) {
+    const key = JSON.stringify({ rawStartDate, rawEndDate, source });
+
+    // 1. Cache hit
+    const cached = dashboardCache.get(key);
+    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL_MS) {
+        console.log(`[Cache HIT] ${key.substring(0, 60)}`);
+        return cached.data;
+    }
+
+    // 2. Deduplicación: reutiliza promesa en vuelo si ya hay una idéntica
+    if (inFlightMap.has(key)) {
+        console.log(`[InFlight] Reutilizando petición en curso`);
+        return inFlightMap.get(key);
+    }
+
+    // 3. Nueva petición
+    console.log(`[Cache MISS] Consultando APIs externas...`);
+    const promise = fetchFilteredOrders(rawStartDate, rawEndDate, source)
+        .then(data => {
+            dashboardCache.set(key, { data, timestamp: Date.now() });
+            inFlightMap.delete(key);
+            return data;
+        })
+        .catch(err => {
+            inFlightMap.delete(key); // No cachear errores
+            throw err;
+        });
+
+    inFlightMap.set(key, promise);
+    return promise;
+}
+
 app.get('/api/dashboard', async (req, res) => {
     const { startDate, endDate, source = 'all' } = req.query;
     try {
@@ -368,7 +407,7 @@ app.get('/api/dashboard', async (req, res) => {
         const defaultStart = dayjs().tz(SHOP_TZ).startOf('month').format('YYYY-MM-DD');
         const qStart = (startDate && startDate !== 'undefined' && startDate !== '') ? startDate : defaultStart;
         const qEnd = (endDate && endDate !== 'undefined' && endDate !== '') ? endDate : todayStr;
-        const allOrders = await fetchFilteredOrders(initialDateStr, qEnd, source);
+        const allOrders = await fetchFilteredOrdersCached(initialDateStr, qEnd, source);
         const start = dayjs.tz(qStart + ' 00:00:00', SHOP_TZ);
         const end = dayjs.tz(qEnd + ' 23:59:59', SHOP_TZ);
         const filteredOrders = allOrders.filter(o => {

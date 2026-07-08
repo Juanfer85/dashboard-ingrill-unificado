@@ -45,6 +45,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('refresh-btn').addEventListener('click', fetchData);
     document.getElementById('source-select').addEventListener('change', fetchData);
+
+    // Banner de error resiliente: cerrar y reintentar
+    const bannerClose = document.getElementById('api-error-close');
+    const bannerRetry = document.getElementById('api-error-retry');
+    if (bannerClose) bannerClose.addEventListener('click', hideApiError);
+    if (bannerRetry) bannerRetry.addEventListener('click', () => { hideApiError(); fetchData(); });
     document.getElementById('download-csv-btn').addEventListener('click', downloadExcel);
     document.getElementById('barrel-select').addEventListener('change', updateBarrelAnalysis);
 
@@ -168,6 +174,48 @@ async function fetchMeliShipments() {
     }
 }
 
+// ─── Banner de Error Resiliente ─────────────────────────────────────────────
+const TRANSIENT_CODES = new Set([0, 408, 429, 500, 502, 503, 504]);
+
+const ERROR_MESSAGES = {
+    401: { title: 'Acceso no autorizado (401)', detail: 'Revisa las credenciales de autenticación en las variables de entorno.' },
+    403: { title: 'Sin permisos (403)',          detail: 'Tu usuario no tiene acceso a este recurso. Verifica los tokens de API.' },
+    404: { title: 'Endpoint no encontrado (404)', detail: 'La ruta de la API no existe. Verifica que el servidor esté actualizado.' },
+    429: { title: 'Rate Limit alcanzado (429)',   detail: 'Se han enviado demasiadas solicitudes. Los datos se reintentarán pronto.' },
+    500: { title: 'Error interno del servidor (500)', detail: 'El backend encontró un error. Revisa los logs de Vercel.' },
+    502: { title: 'Puerta de enlace (502)',       detail: 'El servidor no responde. Puede ser un reinicio temporal.' },
+    503: { title: 'Servicio no disponible (503)', detail: 'El servidor está sobrecargado o reiniciando. Intenta de nuevo.' },
+    0:   { title: 'Sin conexión a la red',       detail: 'Verifica tu conexión a internet e intenta de nuevo.' },
+};
+
+function showApiError(statusCode, fallbackMessage) {
+    const banner  = document.getElementById('api-error-banner');
+    const titleEl = document.getElementById('api-error-title');
+    const detailEl = document.getElementById('api-error-detail');
+    const retryBtn = document.getElementById('api-error-retry');
+    if (!banner) return;
+
+    const isTransient = TRANSIENT_CODES.has(statusCode);
+    const msg = ERROR_MESSAGES[statusCode] || {
+        title: isTransient ? 'Error de conexión transitorio' : `Error del servidor (${statusCode})`,
+        detail: fallbackMessage || 'No se pudieron obtener los datos.'
+    };
+
+    titleEl.textContent  = msg.title;
+    detailEl.textContent = msg.detail;
+    retryBtn.style.display = isTransient ? 'inline-block' : 'none';
+
+    banner.classList.remove('transient', 'permanent', 'visible');
+    // Force reflow so animation re-triggers
+    void banner.offsetWidth;
+    banner.classList.add(isTransient ? 'transient' : 'permanent', 'visible');
+}
+
+function hideApiError() {
+    const banner = document.getElementById('api-error-banner');
+    if (banner) banner.classList.remove('visible');
+}
+
 async function fetchData() {
     const loading = document.getElementById('loading');
     const source = document.getElementById('source-select').value;
@@ -196,6 +244,16 @@ async function fetchData() {
         url.searchParams.append('endDate', endDate);
 
         const res = await fetch(url);
+
+        if (!res.ok) {
+            const statusCode = res.status;
+            let errDetail = '';
+            try { const errJson = await res.json(); errDetail = errJson.details || errJson.error || ''; } catch {}
+            showApiError(statusCode, errDetail);
+            return;
+        }
+
+        hideApiError();
         const data = await res.json();
         console.log('API Response:', data);
 
@@ -203,7 +261,7 @@ async function fetchData() {
         await fetchMeliShipments();
     } catch (err) {
         console.error('Fetch Error:', err);
-        alert('Error al obtener datos unificados');
+        showApiError(0, err.message); // 0 = error de red
     } finally {
         loading.style.display = 'none';
     }

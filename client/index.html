@@ -1337,11 +1337,119 @@
             from { transform: translateY(20px); opacity: 0; }
             to { transform: translateY(0); opacity: 1; }
         }
+
+        /* ─── Banner de Error de API ────────────────────────────────────────── */
+        #api-error-banner {
+            display: none;
+            position: fixed;
+            top: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9999;
+            min-width: 340px;
+            max-width: 640px;
+            width: calc(100% - 2rem);
+            border-radius: 1rem;
+            padding: 0.9rem 1.25rem;
+            display: none;
+            align-items: center;
+            gap: 0.85rem;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.45);
+            animation: banner-slide-down 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        #api-error-banner.visible {
+            display: flex !important;
+        }
+        #api-error-banner.transient {
+            background: rgba(234, 88, 12, 0.15);
+            border: 1px solid rgba(234, 88, 12, 0.45);
+            color: #fb923c;
+        }
+        #api-error-banner.permanent {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.45);
+            color: #f87171;
+        }
+        body[data-theme="light"] #api-error-banner.transient {
+            background: rgba(234, 88, 12, 0.08);
+            border-color: rgba(234, 88, 12, 0.35);
+            color: #c2410c;
+        }
+        body[data-theme="light"] #api-error-banner.permanent {
+            background: rgba(239, 68, 68, 0.08);
+            border-color: rgba(239, 68, 68, 0.35);
+            color: #dc2626;
+        }
+        .api-error-icon {
+            flex-shrink: 0;
+            width: 20px;
+            height: 20px;
+        }
+        .api-error-text {
+            flex: 1;
+            line-height: 1.4;
+        }
+        .api-error-title {
+            font-weight: 700;
+            margin-bottom: 0.1rem;
+        }
+        .api-error-detail {
+            font-size: 0.78rem;
+            opacity: 0.85;
+        }
+        #api-error-retry {
+            flex-shrink: 0;
+            background: rgba(249, 115, 22, 0.2);
+            border: 1px solid rgba(249, 115, 22, 0.5);
+            color: #fb923c;
+            padding: 0.4rem 0.85rem;
+            border-radius: 0.5rem;
+            font-weight: 700;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        #api-error-retry:hover {
+            background: rgba(249, 115, 22, 0.3);
+        }
+        #api-error-close {
+            flex-shrink: 0;
+            background: transparent;
+            border: none;
+            color: inherit;
+            cursor: pointer;
+            opacity: 0.6;
+            padding: 0.2rem;
+            line-height: 1;
+            font-size: 1rem;
+            transition: opacity 0.2s;
+        }
+        #api-error-close:hover { opacity: 1; }
+        @keyframes banner-slide-down {
+            from { transform: translateX(-50%) translateY(-24px); opacity: 0; }
+            to   { transform: translateX(-50%) translateY(0);    opacity: 1; }
+        }
     </style>
 </head>
 <body>
     <div class="loading-overlay" id="loading">
         <div class="spinner"></div>
+    </div>
+
+    <!-- Banner de error resiliente: visible solo cuando la API falla -->
+    <div id="api-error-banner" role="alert" aria-live="assertive">
+        <svg class="api-error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="0.5" fill="currentColor"/>
+        </svg>
+        <div class="api-error-text">
+            <div class="api-error-title" id="api-error-title">Error de conexión</div>
+            <div class="api-error-detail" id="api-error-detail">No se pudieron obtener los datos.</div>
+        </div>
+        <button id="api-error-retry" style="display:none">Reintentar</button>
+        <button id="api-error-close" title="Cerrar">×</button>
     </div>
 
     <div class="container">
@@ -1772,7 +1880,7 @@
 
     </div>
 
-    <script src="dashboard-main.js?v=16.2"></script>
+    <script src="dashboard-main.js?v=17"></script>
 </body>
 </html>
 
