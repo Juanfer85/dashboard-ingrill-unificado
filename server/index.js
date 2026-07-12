@@ -402,12 +402,11 @@ async function fetchFilteredOrdersCached(rawStartDate, rawEndDate, source) {
 app.get('/api/dashboard', async (req, res) => {
     const { startDate, endDate, source = 'all' } = req.query;
     try {
-        const initialDateStr = '2026-01-01';
         const todayStr = dayjs().tz(SHOP_TZ).format('YYYY-MM-DD');
         const defaultStart = dayjs().tz(SHOP_TZ).startOf('month').format('YYYY-MM-DD');
         const qStart = (startDate && startDate !== 'undefined' && startDate !== '') ? startDate : defaultStart;
         const qEnd = (endDate && endDate !== 'undefined' && endDate !== '') ? endDate : todayStr;
-        const allOrders = await fetchFilteredOrdersCached(initialDateStr, qEnd, source);
+        const allOrders = await fetchFilteredOrdersCached(qStart, qEnd, source);
         const start = dayjs.tz(qStart + ' 00:00:00', SHOP_TZ);
         const end = dayjs.tz(qEnd + ' 23:59:59', SHOP_TZ);
         const filteredOrders = allOrders.filter(o => {
@@ -428,7 +427,7 @@ app.get('/api/dashboard', async (req, res) => {
         });
         const topProducts = Object.values(productMap).map(p => ({ ...p, sources: Array.from(p.sources) })).sort((a, b) => b.revenue - a.revenue).slice(0, 10);
         const monthlyData = {};
-        const trendStart = dayjs.tz('2026-01-01 00:00:00', SHOP_TZ);
+        const trendStart = dayjs.tz(qStart + ' 00:00:00', SHOP_TZ);
         const trendEnd = dayjs.tz(qEnd + ' 23:59:59', SHOP_TZ);
         let tempDate = trendStart.clone().startOf('month');
         const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
