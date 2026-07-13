@@ -1087,8 +1087,7 @@ async function fetchInvasInventory() {
         const data = await res.json();
         
         if (Array.isArray(data)) {
-            // Sort alphabetically by name by default
-            data.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es', { sensitivity: 'base' }));
+            // Keep original order from source CSV/Google Sheet file
             
             window.invasData = data;
             
