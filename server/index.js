@@ -566,8 +566,20 @@ app.get('/api/inventory', async (req, res) => {
             });
         }
 
-        const headers = rows[0].map(h => h.trim().toUpperCase());
-        console.log('CSV Headers:', headers);
+        // Buscar dinámicamente la fila de cabeceras que contiene PROD. COD y PROD NOM
+        let headerRowIndex = -1;
+        for (let i = 0; i < rows.length; i++) {
+            const tempHeaders = rows[i].map(h => h.trim().toUpperCase());
+            if (tempHeaders.includes('PROD. COD') || tempHeaders.includes('PROD NOM')) {
+                headerRowIndex = i;
+                break;
+            }
+        }
+
+        // Si no se encuentra, usar la primera fila como fallback
+        const headersIndex = headerRowIndex !== -1 ? headerRowIndex : 0;
+        const headers = rows[headersIndex].map(h => h.trim().toUpperCase());
+        console.log('CSV Headers Found at row', headersIndex, ':', headers);
 
         // Required columns: PROD. COD, PROD NOM, DISP COMERCIAL, ULTIMA ACTUALIZACION
         const idxCodigo = headers.indexOf('PROD. COD');
@@ -589,7 +601,7 @@ app.get('/api/inventory', async (req, res) => {
         }
 
         const products = [];
-        for (let i = 1; i < rows.length; i++) {
+        for (let i = headersIndex + 1; i < rows.length; i++) {
             const row = rows[i];
             if (row.length <= Math.max(idxCodigo, idxNombre, idxDisponible, idxActualizado)) {
                 continue;
