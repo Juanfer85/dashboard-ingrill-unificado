@@ -414,7 +414,8 @@ app.get('/api/dashboard', async (req, res) => {
             return (orderDate.isAfter(start) || orderDate.isSame(start)) && (orderDate.isBefore(end) || orderDate.isSame(end));
         });
         const totalRevenue = filteredOrders.reduce((acc, o) => acc + o.totalPrice, 0);
-        const totalOrders = filteredOrders.length;
+        const uniqueOrderIds = new Set(filteredOrders.map(o => o.id));
+        const totalOrders = uniqueOrderIds.size;
         const aov = totalOrders > 0 ? totalRevenue / totalOrders : 0;
         const productMap = {};
         filteredOrders.forEach(o => {
