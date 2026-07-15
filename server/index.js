@@ -962,6 +962,104 @@ app.get('/api/meli-shipments', async (req, res) => {
     }
 });
 
+app.get('/api/meli-shipment-status', async (req, res) => {
+    try {
+        const startDate = dayjs().tz(SHOP_TZ).subtract(30, 'day').format('YYYY-MM-DD');
+        const endDate = dayjs().tz(SHOP_TZ).format('YYYY-MM-DD');
+
+        const meliOrders = await fetchFilteredOrders(startDate, endDate, 'meli');
+
+        // Sort newest first
+        const sortedOrders = [...meliOrders].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+        // Deduplicate by shipping.id to avoid duplicate shipments
+        const uniqueOrders = [];
+        const seenShippingIds = new Set();
+        for (const o of sortedOrders) {
+            if (o.shipping?.id && !seenShippingIds.has(o.shipping.id)) {
+                seenShippingIds.add(o.shipping.id);
+                uniqueOrders.push(o);
+            }
+        }
+
+        // Limit the number of shipments we fetch details for to prevent rate limits
+        const targetOrders = uniqueOrders.slice(0, 40);
+
+        const todayList = [];
+        const prepList = [];
+        const deliveredList = [];
+
+        const todayStart = dayjs().tz(SHOP_TZ).startOf('day');
+
+        await Promise.all(targetOrders.map(async (o) => {
+            try {
+                const shipmentId = o.shipping.id;
+                const shipmentData = await meliRequest('GET', `/shipments/${shipmentId}`);
+                if (shipmentData) {
+                    const status = shipmentData.status;
+                    const substatus = shipmentData.substatus;
+                    const logisticType = shipmentData.logistic_type;
+                    
+                    const isToday = dayjs(o.createdAt).tz(SHOP_TZ).isAfter(todayStart) || dayjs(o.createdAt).tz(SHOP_TZ).isSame(todayStart);
+
+                    const shipmentObj = {
+                        id: o.id,
+                        orderId: o.id.replace('ML-', ''),
+                        createdAt: o.createdAt,
+                        customer: o.customer,
+                        items: o.items.map(item => ({
+                            title: item.title,
+                            sku: item.sku,
+                            ean: item.ean,
+                            quantity: item.quantity,
+                            price: item.price
+                        })),
+                        totalPrice: o.totalPrice,
+                        shipping: {
+                            id: shipmentId,
+                            status: status || null,
+                            substatus: substatus || null,
+                            logisticType: logisticType || null
+                        }
+                    };
+
+                    if (isToday) {
+                        todayList.push(shipmentObj);
+                    }
+
+                    // Preparation: status is ready_to_ship, handling, or pending
+                    if (status === 'ready_to_ship' || status === 'handling' || status === 'pending') {
+                        prepList.push(shipmentObj);
+                    }
+
+                    // Delivered: status is delivered
+                    if (status === 'delivered') {
+                        deliveredList.push(shipmentObj);
+                    }
+                }
+            } catch (err) {
+                console.error(`Error fetching shipment details for ${o.id}:`, err.message);
+            }
+        }));
+
+        // Sort each list newest first
+        const sortByDate = (a, b) => new Date(b.createdAt) - new Date(a.createdAt);
+        todayList.sort(sortByDate);
+        prepList.sort(sortByDate);
+        deliveredList.sort(sortByDate);
+
+        res.json({
+            success: true,
+            today: todayList,
+            preparation: prepList,
+            delivered: deliveredList
+        });
+    } catch (error) {
+        console.error('Error fetching Meli shipment status:', error);
+        res.status(500).json({ error: 'Failed to fetch Meli shipment status', details: error.message });
+    }
+});
+
 app.get('/api/meli-claims', async (req, res) => {
     try {
         console.log('[Server] Fetching Mercado Libre claims');

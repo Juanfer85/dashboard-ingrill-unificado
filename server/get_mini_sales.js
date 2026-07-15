@@ -1,0 +1,393 @@
+const path = require('path');
+const fs = require('fs');
+const dayjs = require('dayjs');
+const utc = require('dayjs/plugin/utc');
+const timezone = require('dayjs/plugin/timezone');
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+const SHOP_TZ = 'America/Santiago';
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
+
+const { getAllOrders } = require('./shopifyConnector');
+const { getMeliOrders } = require('./meliConnector');
+const { getRipleyOrders } = require('./ripleyConnector');
+const { getSodimacOrders } = require('./sodimacConnector');
+
+// Import normalizers from index.js or re-define them here to be self-contained
+const termsMap = {
+    'Mini': ['barril', 'mini'],
+    'Pequeño Basik': ['barril', 'pequeño', 'basik'],
+    'Mediano Basik': ['barril', 'mediano', 'basik'],
+    'Grande Basik': ['barril', 'grande', 'basik'],
+    'Pequeño Premium': ['barril', 'pequeño', 'premium'],
+    'Mediano Premium': ['barril', 'mediano', 'premium'],
+    'Grande Premium': ['barril', 'grande', 'premium']
+};
+
+const nameFormatting = {
+    'Mini': 'Barril Ahumador Mini',
+    'Pequeño Basik': 'Barril Ahumador Basik Pequeño',
+    'Mediano Basik': 'Barril Ahumador Basik Mediano',
+    'Grande Basik': 'Barril Ahumador Basik Grande',
+    'Pequeño Premium': 'Barril Ahumador Premium Pequeño',
+    'Mediano Premium': 'Barril Ahumador Premium Mediano',
+    'Grande Premium': 'Barril Ahumador Premium Grande'
+};
+
+const negativeTerms = ['rack', 'funda', 'gancho', 'garfio', 'espina', 'kit', 'accesorio'];
+
+const skuDatabase = [
+    { name: 'AHUMADOR PREMIUM PEQUEÑO', ean: '7708583218562', sku: 'AHPEQPRE', normalized: 'Barril Ahumador Premium Pequeño' },
+    { name: 'AHUMADOR PREMIUM MEDIANO', ean: '7708583218289', sku: 'AHUMEPREM', normalized: 'Barril Ahumador Premium Mediano' },
+    { name: 'AHUMADOR PREMIUM GRANDE', ean: '7708583218753', sku: 'AHUGRAPREM', normalized: 'Barril Ahumador Premium Grande' },
+    { name: 'AHUMADOR BASIK PEQUEÑO', ean: '7708583218333', sku: 'AHPEQBA', normalized: 'Barril Ahumador Basik Pequeño' },
+    { name: 'AHUMADOR BASIK MEDIANO', ean: '7708583218609', sku: 'AHUMEBA', normalized: 'Barril Ahumador Basik Mediano' },
+    { name: 'AHUMADOR BASIK GRANDE', ean: '7708583218524', sku: 'AHUGRABA', normalized: 'Barril Ahumador Basik Grande' },
+    { name: 'AHUMADOR BASIK MINI', ean: '7708583218005', sku: 'AHUMINI', normalized: 'Barril Ahumador Mini' },
+    { name: 'ASADOR A CARBON PICNIC', ean: '7708583218296', sku: 'ASAPIC', normalized: 'Asador a Carbón Picnic' },
+    { name: 'CANASTILLA DE VERDURAS', ean: '7708583218012', sku: 'RACVER', normalized: 'Canastilla de Verduras' },
+    { name: 'FORRO GRANDE', ean: '7708583218876', sku: 'FORGRA', normalized: 'Forro Grande' },
+    { name: 'FORRO MEDIANO', ean: '7709974567665', sku: 'FORMED', normalized: 'Forro Mediano' },
+    { name: 'FORRO MINI', ean: '7708583218616', sku: 'FORMIN', normalized: 'Forro Mini' },
+    { name: 'FORRO PEQUEÑO', ean: '7709974567610', sku: 'FORPEQ', normalized: 'Forro Pequeño' },
+    { name: 'GANCHO ESPINA DE PESCADO MEDIANO', ean: '7708583218869', sku: 'ESPPES', normalized: 'Espina de Pescado' },
+    { name: 'GANCHO ESPINA DE PESCADO MINI', ean: '7708583218593', sku: 'ESPPESMIN', normalized: 'Espina de Pescado para Barril Ahumador MINI' },
+    { name: 'GARFIO PREMIUM', ean: '7708583218388', sku: 'GARPRE', normalized: 'Garfio Premium' },
+    { name: 'GARRA DE OSO', ean: '7708583218234', sku: 'GAROSO', normalized: 'Garra de Oso' },
+    { name: 'KIT GANCHOS X 6', ean: '7708583218166', sku: 'KITGAN', normalized: 'Ganchos x 6und' },
+    { name: 'KIT PINCHOS X 4', ean: '7708583218104', sku: 'KITPIN', normalized: 'Kit Pinchos x 4' },
+    { name: 'KIT PINCHOS X 4 MINI', ean: '7708583218968', sku: 'KITPINMIN', normalized: 'Kit Pinchos x 4 Mini' },
+    { name: 'RACK DE PESCADO', ean: '7709997215406', sku: 'RACPES', normalized: 'Rack de Pescado' },
+    { name: 'RACK DE POLLO', ean: '7708583218036', sku: 'RACPOL', normalized: 'Rack de Pollo' },
+    { name: 'RACK MULTIUSOS X 3', ean: '7708583218371', sku: 'RAHAMPEQ', normalized: 'Rack Hamburguesas X3 niveles' },
+    { name: 'RACK MULTIUSOS X 3 MINI', ean: '7708583218463', sku: 'RACHAMMIN', normalized: 'Rack de Hamburguesas para Barril MINI' },
+    { name: 'RACK MULTIUSOS X 4', ean: '7708583218715', sku: 'RAHAMGRA', normalized: 'Rack Multiusos x 4' },
+    { name: 'VAPORIZADOR', ean: '7708583218418', sku: 'ACCVAP', normalized: 'Vaporizador' }
+];
+
+function resolveProductCodes(normalizedTitle, rawSku) {
+    const cleanSku = String(rawSku || '').trim().toUpperCase();
+    if (cleanSku && cleanSku !== 'N/A') {
+        const found = skuDatabase.find(d => d.sku === cleanSku || d.ean === cleanSku);
+        if (found) return { sku: found.sku, ean: found.ean };
+    }
+    if (normalizedTitle) {
+        const lowerNorm = normalizedTitle.toLowerCase();
+        const foundExact = skuDatabase.find(d => d.normalized.toLowerCase() === lowerNorm || d.name.toLowerCase() === lowerNorm);
+        if (foundExact) return { sku: foundExact.sku, ean: foundExact.ean };
+        const foundPartial = skuDatabase.find(d => {
+            const dbNorm = d.normalized.toLowerCase();
+            const dbName = d.name.toLowerCase();
+            return lowerNorm.includes(dbNorm) || dbNorm.includes(lowerNorm) || lowerNorm.includes(dbName) || dbName.includes(lowerNorm);
+        });
+        if (foundPartial) return { sku: foundPartial.sku, ean: foundPartial.ean };
+    }
+    if (/^\d{10,14}$/.test(cleanSku)) return { sku: 'N/A', ean: cleanSku };
+    return { sku: rawSku || 'N/A', ean: 'N/A' };
+}
+
+function normalizeProductName(title) {
+    if (!title) return 'N/A';
+    const lowerTitle = title.toLowerCase();
+    if (lowerTitle.includes('canastilla')) return 'Canastilla de Verduras';
+    if (lowerTitle.includes('garra')) return 'Garra de Oso';
+    if (lowerTitle.includes('garfio')) return 'Garfio Premium';
+    if (lowerTitle.includes('vaporizador')) return 'Vaporizador';
+    if (lowerTitle.includes('asador') && lowerTitle.includes('picnic')) return 'Asador a Carbón Picnic';
+    if (lowerTitle.includes('funda') || lowerTitle.includes('forro')) {
+        if (lowerTitle.includes('mini')) return 'Forro Mini';
+        if (lowerTitle.includes('pequeño') || lowerTitle.includes('pequeñ') || lowerTitle.includes('pequeno')) return 'Forro Pequeño';
+        if (lowerTitle.includes('mediano')) return 'Forro Mediano';
+        if (lowerTitle.includes('grande')) return 'Forro Grande';
+    }
+    if (lowerTitle.includes('pincho')) {
+        if (lowerTitle.includes('mini')) return 'Kit Pinchos x 4 Mini';
+        return 'Kit Pinchos x 4';
+    }
+    if (lowerTitle.includes('espina de pescado') || (lowerTitle.includes('espina') && lowerTitle.includes('pescado'))) {
+        if (lowerTitle.includes('mini')) return 'Espina de Pescado para Barril Ahumador MINI';
+        return 'Espina de Pescado';
+    }
+    if (lowerTitle.includes('gancho')) return 'Ganchos x 6und';
+    if (lowerTitle.includes('rack')) {
+        if (lowerTitle.includes('pollo')) return 'Rack de Pollo';
+        if (lowerTitle.includes('pescado')) return 'Rack de Pescado';
+        if (lowerTitle.includes('multiuso') || lowerTitle.includes('hamburguesa')) {
+            if (lowerTitle.includes('mini')) return 'Rack de Hamburguesas para Barril MINI';
+            if (lowerTitle.includes('grande') || lowerTitle.includes('x 4') || lowerTitle.includes('x4')) return 'Rack Multiusos x 4';
+            return 'Rack Hamburguesas X3 niveles';
+        }
+    }
+    const hasNegative = negativeTerms.some(neg => lowerTitle.includes(neg));
+    if (hasNegative) return title;
+    for (const [type, requiredTerms] of Object.entries(termsMap)) {
+        const matches = requiredTerms.every(term => {
+            if (term === 'pequeño') return lowerTitle.includes('pequeño') || lowerTitle.includes('pequeno');
+            return lowerTitle.includes(term);
+        });
+        if (matches) return nameFormatting[type];
+    }
+    return title;
+}
+
+function normalizeShopifyOrder(o) {
+    try {
+        if (o.test) return null;
+        if (o.cancelledAt) return null;
+        const customer = o.customer ? `${o.customer.firstName} ${o.customer.lastName}` : 'Invitado';
+        const lineItems = o.lineItems?.edges || [];
+        const totalUnits = lineItems.reduce((acc, e) => acc + e.node.quantity, 0);
+        let sourceLabel = 'Shopify Web';
+        const rawSource = (o.sourceName || '').toLowerCase();
+        if (rawSource.includes('ripley')) sourceLabel = 'Ripley';
+        else if (rawSource.includes('pos')) sourceLabel = 'Shopify POS';
+        else if (rawSource === 'web' || rawSource.includes('online_store')) sourceLabel = 'Shopify Web';
+        else sourceLabel = o.sourceName || 'Shopify';
+        const items = lineItems.map(li => {
+            const normalizedTitle = normalizeProductName(li.node.title);
+            const codes = resolveProductCodes(normalizedTitle, li.node.sku);
+            return { title: normalizedTitle, quantity: li.node.quantity, price: parseFloat(li.node.originalUnitPriceSet?.shopMoney?.amount || 0), sku: codes.sku, ean: codes.ean };
+        });
+        const sku = items[0]?.sku || 'N/A';
+        const ean = items[0]?.ean || 'N/A';
+        return { id: o.name, source: sourceLabel, totalPrice: parseFloat(o.totalPriceSet?.shopMoney?.amount || 0), createdAt: o.createdAt, customer, currency: o.totalPriceSet?.shopMoney?.currencyCode || 'CLP', totalUnits, sku, ean, financialStatus: o.displayFinancialStatus, fulfillmentStatus: o.displayFulfillmentStatus, items };
+    } catch (err) {
+        console.error('Error normalizing Shopify order:', err, o);
+        return null;
+    }
+}
+
+function normalizeMeliOrder(o) {
+    const buyer = o.buyer || {};
+    const customer = [buyer.first_name, buyer.last_name].filter(Boolean).join(' ') || buyer.nickname || 'Invitado';
+    const totalUnits = (o.order_items || []).reduce((acc, item) => acc + item.quantity, 0);
+    const items = (o.order_items || []).map(oi => {
+        const normalizedTitle = normalizeProductName(oi.item.title || 'Producto MELI');
+        const codes = resolveProductCodes(normalizedTitle, oi.item.seller_sku);
+        return { title: normalizedTitle, quantity: oi.quantity, price: parseFloat(oi.unit_price), sku: codes.sku, ean: codes.ean };
+    });
+    const sku = items[0]?.sku || 'N/A';
+    const ean = items[0]?.ean || 'N/A';
+    return {
+        id: `ML-${o.pack_id || o.id}`,
+        source: 'Mercado Libre',
+        totalPrice: parseFloat(o.total_amount || 0),
+        createdAt: o.date_created,
+        customer,
+        currency: o.currency_id || 'CLP',
+        totalUnits,
+        sku,
+        ean,
+        items,
+        shipping: {
+            id: o.shipping?.id || null,
+            status: o.shipping?.status || null,
+            substatus: o.shipping?.substatus || null
+        }
+    };
+}
+
+function normalizeRipleyOrder(o) {
+    const customer = o.customer ? `${o.customer.firstname} ${o.customer.lastname}` : 'Invitado Ripley';
+    
+    // Detectar si es el cliente con devolución de dinero solicitada en las fechas específicas (27/05/2026 y 28/06/2026)
+    const isRefunded = (() => {
+        const lowerCustomer = customer.toLowerCase();
+        const isYecsson = lowerCustomer.includes('yecsson') && (lowerCustomer.includes('hernandez') || lowerCustomer.includes('hernández'));
+        if (!isYecsson) return false;
+        const orderDateStr = o.created_date || '';
+        return orderDateStr.startsWith('2026-05-27') || orderDateStr.startsWith('2026-06-28');
+    })();
+
+    const totalUnits = isRefunded ? 0 : (o.order_lines || []).reduce((acc, line) => acc + line.quantity, 0);
+
+    const items = (o.order_lines || []).map(line => {
+        const normalizedTitle = normalizeProductName(line.product_title);
+        const codes = resolveProductCodes(normalizedTitle, line.offer_sku);
+        return {
+            title: normalizedTitle,
+            quantity: isRefunded ? 0 : line.quantity,
+            price: isRefunded ? 0 : parseFloat(line.price_unit),
+            sku: codes.sku,
+            ean: codes.ean
+        };
+    });
+    const sku = items[0]?.sku || 'N/A';
+    const ean = items[0]?.ean || 'N/A';
+
+    return {
+        id: `RP-${o.order_id}`,
+        source: 'Ripley',
+        totalPrice: isRefunded ? 0 : parseFloat(o.total_price || 0),
+        createdAt: o.created_date,
+        customer,
+        currency: 'CLP',
+        totalUnits,
+        sku,
+        ean,
+        items
+    };
+}
+
+function normalizeSodimacOrder(o) {
+    try {
+        const customer = [o.CustomerFirstName, o.CustomerLastName].filter(Boolean).join(' ') || 'Invitado Sodimac';
+        const rawItems = o.OrderItems || [];
+        const totalUnits = rawItems.length;
+
+        const items = rawItems.map(item => {
+            const normalizedTitle = normalizeProductName(item.Name || 'Producto Sodimac');
+            const codes = resolveProductCodes(normalizedTitle, item.Sku);
+            return {
+                title: normalizedTitle,
+                quantity: 1,
+                price: parseFloat(item.PaidPrice || item.ItemPrice || 0),
+                sku: codes.sku,
+                ean: codes.ean
+            };
+        });
+
+        const sku = items[0]?.sku || 'N/A';
+        const ean = items[0]?.ean || 'N/A';
+
+        return {
+            id: `SD-${o.OrderId || o.OrderNumber}`,
+            source: 'Sodimac',
+            totalPrice: parseFloat(o.Price || 0),
+            createdAt: o.CreatedAt,
+            customer,
+            currency: 'CLP',
+            totalUnits,
+            sku,
+            ean,
+            items
+        };
+    } catch (err) {
+        console.error('Error normalizing Sodimac order:', err, o);
+        return null;
+    }
+}
+
+async function run() {
+    console.log('Querying orders from May 8, 2026 to present...');
+    const startStr = '2026-05-08';
+    const endStr = dayjs().tz(SHOP_TZ).format('YYYY-MM-DD');
+
+    const start = dayjs.tz(startStr + ' 00:00:00', SHOP_TZ);
+    const end = dayjs.tz(endStr + ' 23:59:59', SHOP_TZ);
+
+    console.log(`Date range in America/Santiago: [${start.format()}] to [${end.format()}]`);
+
+    const promises = [];
+    const results = { shopify: [], meli: [], ripley: [], sodimac: [] };
+
+    // Shopify
+    const shopifyQueryStr = `status:any AND created_at:>=${start.toISOString()} AND created_at:<=${end.toISOString()}`;
+    promises.push(
+        getAllOrders(shopifyQueryStr)
+            .then(data => {
+                results.shopify = (data?.orders?.edges || []).map(e => normalizeShopifyOrder(e.node)).filter(Boolean);
+                console.log(`Shopify orders fetched: ${results.shopify.length}`);
+            })
+            .catch(err => console.error('Shopify fetch failed:', err.message))
+    );
+
+    // Mercado Libre
+    promises.push(
+        getMeliOrders(start.toISOString(), end.toISOString())
+            .then(orders => {
+                results.meli = (orders || []).map(normalizeMeliOrder).filter(Boolean);
+                console.log(`Meli orders fetched: ${results.meli.length}`);
+            })
+            .catch(err => console.error('Meli fetch failed:', err.message))
+    );
+
+    // Ripley
+    promises.push(
+        getRipleyOrders(start.toISOString(), end.toISOString())
+            .then(orders => {
+                results.ripley = (orders || []).map(normalizeRipleyOrder).filter(Boolean);
+                console.log(`Ripley orders fetched: ${results.ripley.length}`);
+            })
+            .catch(err => console.error('Ripley fetch failed:', err.message))
+    );
+
+    // Sodimac
+    promises.push(
+        getSodimacOrders(start.toISOString(), end.toISOString())
+            .then(orders => {
+                results.sodimac = (orders || []).map(normalizeSodimacOrder).filter(Boolean);
+                console.log(`Sodimac orders fetched: ${results.sodimac.length}`);
+            })
+            .catch(err => console.error('Sodimac fetch failed:', err.message))
+    );
+
+    await Promise.all(promises);
+
+    const allOrders = [...results.shopify, ...results.meli, ...results.ripley, ...results.sodimac];
+    
+    // Filter by timezone santiago match
+    const inRangeOrders = allOrders.filter(o => {
+        const orderDate = dayjs(o.createdAt).tz(SHOP_TZ);
+        return (orderDate.isAfter(start) || orderDate.isSame(start)) && (orderDate.isBefore(end) || orderDate.isSame(end));
+    });
+
+    console.log(`Total orders in date range: ${inRangeOrders.length}`);
+
+    // Let's filter for "Gancho Espina de Pescado Mini" (ESPPESMIN)
+    const TargetSku = 'ESPPESMIN';
+    const miniSales = [];
+
+    inRangeOrders.forEach(o => {
+        o.items.forEach(item => {
+            const isMatch = (item.sku === TargetSku) || 
+                            (item.ean === '7708583218593') || 
+                            (item.title && item.title.includes('MINI') && (item.title.includes('Espina') || item.title.includes('Gancho')));
+            
+            if (isMatch) {
+                miniSales.push({
+                    orderId: o.id,
+                    source: o.source,
+                    createdAt: dayjs(o.createdAt).tz(SHOP_TZ).format('YYYY-MM-DD HH:mm:ss'),
+                    customer: o.customer,
+                    quantity: item.quantity,
+                    price: item.price,
+                    total: item.price * item.quantity,
+                    financialStatus: o.financialStatus || 'N/A',
+                    fulfillmentStatus: o.fulfillmentStatus || 'N/A'
+                });
+            }
+        });
+    });
+
+    // Summary calculation
+    let totalUnits = 0;
+    let totalRevenue = 0;
+    const byChannel = {};
+
+    miniSales.forEach(sale => {
+        totalUnits += sale.quantity;
+        totalRevenue += sale.total;
+        if (!byChannel[sale.source]) {
+            byChannel[sale.source] = { units: 0, revenue: 0, orders: 0 };
+        }
+        byChannel[sale.source].units += sale.quantity;
+        byChannel[sale.source].revenue += sale.total;
+        byChannel[sale.source].orders += 1;
+    });
+
+    console.log('\n--- VENTAS DE GANCHO ESPINA DE PESCADO MINI ---');
+    console.log(`Desde: 2026-05-08`);
+    console.log(`Hasta: ${endStr}`);
+    console.log(`Unidades totales vendidas: ${totalUnits}`);
+    console.log(`Ingresos totales: $${totalRevenue.toLocaleString('es-CL')} CLP`);
+    console.log('\nDesglose por Canal:');
+    console.table(byChannel);
+
+    console.log('\nListado de Ventas:');
+    console.table(miniSales.sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+}
+
+run();
