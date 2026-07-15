@@ -387,3 +387,4 @@
 185. Implementado el fetch y la lógica de renderizado dinámico en `client/dashboard-main.js` (`fetchMeliShipmentStatus` y `renderMeliShipmentStatus`).
 186. Ejecutada la suite de pruebas del backend y del sandbox VM (`npm test`), logrando la aprobación de todos los tests.
 187. Incrementado el cache-buster a `v=20` en `client/index.html` y sincronizados los archivos estáticos a la carpeta `public` mediante `npm run sync-static`.
+188. Reemplazado el color amarillo (#ffe600) de Mercado Libre por el color naranja-durazno premium (#fb923c) en el gráfico "Ventas por Origen", insignias, etiquetas y botones de reimpresión en `client/index.html`, `client/dashboard-main.js` e `client/informe.html` para unificar la paleta de colores y lograr consistencia visual con los gráficos adyacentes de barriles y productos, y sincronizado con `npm run sync-static`.

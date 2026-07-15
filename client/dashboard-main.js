@@ -556,7 +556,7 @@ function updateCharts(data) {
 
     const originLabels = Object.keys(originRevenue);
     const originValues = Object.values(originRevenue);
-    const originColors = ['#96bf48', '#ffe600', '#8b5dbc', '#00875a']; // Shopify Green, Meli Yellow, Ripley Purple, Sodimac Green
+    const originColors = ['#96bf48', '#fb923c', '#8b5dbc', '#00875a']; // Shopify Green, Meli Yellow (now Orange-Peach), Ripley Purple, Sodimac Green
 
     if (originChart) originChart.destroy();
     originChart = new Chart(document.getElementById('origin-revenue-chart'), {
@@ -1150,7 +1150,7 @@ function renderMeliShipmentStatus(data) {
             const isFlex = s.shipping?.logisticType === 'self_service';
             let logisticsBadge = '';
             if (isFull) {
-                logisticsBadge = '<span class="badge" style="background: rgba(255,230,0,0.1); color: #ffe600; font-size: 0.65rem; border: 1px solid rgba(255,230,0,0.2);">FULL</span>';
+                logisticsBadge = '<span class="badge" style="background: rgba(251, 146, 60, 0.15); color: #fb923c; font-size: 0.65rem; border: 1px solid rgba(251, 146, 60, 0.3);">FULL</span>';
             } else if (isFlex) {
                 logisticsBadge = '<span class="badge" style="background: rgba(16, 185, 129, 0.1); color: #10b981; font-size: 0.65rem; border: 1px solid rgba(16, 185, 129, 0.2);">FLEX</span>';
             }
