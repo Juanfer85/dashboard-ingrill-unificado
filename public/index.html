@@ -1144,25 +1144,226 @@
             gap: 1.25rem;
             margin-top: 0.5rem;
         }
+        /* ─── DISEÑO RESPONSIVO ADAPTATIVO ───────────────────────────────── */
         @media (max-width: 1280px) {
             .metric-grid.grid-5 {
                 grid-template-columns: repeat(3, 1fr);
             }
         }
+
         @media (max-width: 1024px) {
             .metric-grid,
             .metric-grid.grid-5 {
                 grid-template-columns: repeat(2, 1fr);
             }
 
+            .charts-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
             .meli-status-grid {
                 grid-template-columns: 1fr;
             }
+
+            .claim-card {
+                grid-template-columns: 1fr;
+                gap: 1.25rem;
+                padding: 1.25rem;
+            }
+
+            .claim-action-col {
+                align-items: flex-start;
+                min-height: auto;
+                gap: 0.75rem;
+            }
+
+            .btn-attend-claim {
+                width: auto;
+                min-width: 160px;
+            }
+
+            .claims-metric-row {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .claims-metric-empty {
+                display: none;
+            }
         }
-        @media (max-width: 640px) {
+
+        @media (max-width: 768px) {
+            body {
+                padding: 1rem;
+            }
+
+            header {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 1.25rem;
+                margin-bottom: 1.5rem;
+                text-align: center;
+            }
+
+            .header-title {
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+
+            .header-title h1 {
+                font-size: 1.35rem;
+                text-align: center;
+            }
+
+            .header-controls {
+                flex-direction: column;
+                align-items: stretch;
+                width: 100%;
+                gap: 0.75rem;
+            }
+
+            #source-select {
+                margin-right: 0;
+                width: 100%;
+                text-align: center;
+            }
+
+            .date-picker {
+                width: 100%;
+                justify-content: center;
+                padding: 0.5rem;
+            }
+
+            input[type="date"], .flatpickr-input {
+                font-size: 0.85rem;
+                width: 110px;
+                text-align: center;
+            }
+
+            .btn-primary {
+                width: 100%;
+                justify-content: center;
+            }
+
+            /* Navegación por pestañas deslizable horizontalmente (estilo nativo móvil) */
+            .tabs-nav {
+                overflow-x: auto;
+                white-space: nowrap;
+                gap: 1rem;
+                padding-bottom: 0.5rem;
+                scrollbar-width: none; /* Firefox */
+                -ms-overflow-style: none; /* IE 10+ */
+            }
+            
+            .tabs-nav::-webkit-scrollbar {
+                display: none; /* Chrome, Safari, Opera */
+            }
+
+            .btn-tab {
+                padding: 0.5rem 0.25rem;
+                font-size: 0.9rem;
+                flex-shrink: 0;
+            }
+
+            /* Grillas a una sola columna */
+            .charts-grid,
+            .lists-grid,
+            .claims-metric-row {
+                grid-template-columns: 1fr;
+            }
+
+            .chart-card {
+                height: 340px;
+            }
+
+            /* Scroll horizontal seguro para tablas */
+            .table-wrapper {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            table {
+                min-width: 800px; /* Evita que la tabla colapse y sea ilegible */
+            }
+
+            .table-card {
+                padding: 1.25rem 1rem;
+            }
+
+            /* Filtros y tags de la sección Reclamos */
+            .claims-filter-row {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 0.75rem;
+            }
+
+            .claims-filter-left {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 0.75rem;
+            }
+
+            .claims-search-wrapper {
+                max-width: none;
+                width: 100%;
+            }
+
+            .claims-filter-btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .claims-filter-badge {
+                justify-content: center;
+            }
+
+            #claims-record-count {
+                text-align: center;
+            }
+
+            /* Modal Adaptable */
+            .modal-container {
+                width: 95%;
+                max-height: 90vh;
+            }
+
+            .modal-product-summary {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 0.75rem;
+                text-align: center;
+            }
+
+            .modal-product-summary div {
+                justify-content: center;
+                text-align: center;
+            }
+
+            .modal-product-summary div:last-child {
+                text-align: center;
+            }
+
+            .modal-buttons {
+                grid-template-columns: 1fr;
+                gap: 0.5rem;
+            }
+
+            .modal-action-btn {
+                padding: 0.6rem;
+            }
+        }
+
+        @media (max-width: 480px) {
             .metric-grid,
             .metric-grid.grid-5 {
-                grid-template-columns: 1fr;
+                grid-template-columns: 1fr !important;
+            }
+
+            .metric-value {
+                font-size: 1.75rem;
+            }
+
+            .btn-attend-claim {
+                width: 100%;
             }
         }
         .meli-status-column {
