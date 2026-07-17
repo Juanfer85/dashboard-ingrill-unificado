@@ -414,6 +414,7 @@ app.get('/api/dashboard', async (req, res) => {
             return (orderDate.isAfter(start) || orderDate.isSame(start)) && (orderDate.isBefore(end) || orderDate.isSame(end));
         });
         const totalRevenue = filteredOrders.reduce((acc, o) => acc + o.totalPrice, 0);
+        const totalUnits = filteredOrders.reduce((acc, o) => acc + (o.totalUnits || 0), 0);
         const uniqueOrderIds = new Set(filteredOrders.map(o => o.id));
         const totalOrders = uniqueOrderIds.size;
         const aov = totalOrders > 0 ? totalRevenue / totalOrders : 0;
@@ -445,7 +446,7 @@ app.get('/api/dashboard', async (req, res) => {
             if (monthlyData[key]) { monthlyData[key].revenue += o.totalPrice || 0; monthlyData[key].units += o.totalUnits || 0; }
         });
         const monthlyTrend = Object.values(monthlyData);
-        res.json({ version: "v1.3.0", metrics: { totalRevenue, totalOrders, aov, currency: 'CLP' }, recentOrders: filteredOrders.sort((a, b) => dayjs(b.createdAt).diff(dayjs(a.createdAt))), topProducts, monthlyTrend });
+        res.json({ version: "v1.3.0", metrics: { totalRevenue, totalOrders, totalUnits, aov, currency: 'CLP' }, recentOrders: filteredOrders.sort((a, b) => dayjs(b.createdAt).diff(dayjs(a.createdAt))), topProducts, monthlyTrend });
     } catch (error) {
         console.error('API Error:', error.message);
         res.status(500).json({ error: 'Failed to aggregate data', details: error.message });

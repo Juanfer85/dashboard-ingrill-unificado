@@ -288,8 +288,10 @@ function updateDashboard(data) {
     const topProducts = data.topProducts || [];
 
     // Main Metrics
+    const totalUnits = metrics.totalUnits ?? recentOrders.reduce((sum, order) => sum + (order.totalUnits || 0), 0);
     document.getElementById('total-revenue').innerText = formatCurrency(metrics.totalRevenue || 0);
     document.getElementById('total-orders').innerText = metrics.totalOrders || 0;
+    document.getElementById('total-units').innerText = totalUnits;
     document.getElementById('avg-order-value').innerText = formatCurrency(metrics.aov || 0);
 
     // Render Lists
