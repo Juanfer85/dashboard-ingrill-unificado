@@ -302,6 +302,7 @@ function updateDashboard(data) {
     // Global Breakdowns
     const globalRevenueBreakdown = { shopify: 0, meli: 0, ripley: 0, sodimac: 0 };
     const globalOrdersBreakdown = { shopify: 0, meli: 0, ripley: 0, sodimac: 0 };
+    const globalUnitsBreakdown = { shopify: 0, meli: 0, ripley: 0, sodimac: 0 };
     
     recentOrders.forEach(o => {
         const source = String(o.source).toLowerCase();
@@ -312,10 +313,12 @@ function updateDashboard(data) {
         
         globalRevenueBreakdown[key] += (o.totalPrice || 0);
         globalOrdersBreakdown[key] += 1;
+        globalUnitsBreakdown[key] += (o.totalUnits || 0);
     });
 
     renderBreakdown('total-revenue-breakdown', globalRevenueBreakdown, metrics.totalRevenue);
     renderBreakdown('total-orders-breakdown', globalOrdersBreakdown, metrics.totalOrders);
+    renderBreakdown('total-units-breakdown', globalUnitsBreakdown, totalUnits);
 
     // Charts
     updateCharts(data);

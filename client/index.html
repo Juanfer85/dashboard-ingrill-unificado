@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reporte de Ventas Unified</title>
+    <title>Panel Unificado de Canales, Mercado Libre e INVAS</title>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -75,6 +75,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            gap: 1rem;
             margin-bottom: 2rem;
         }
 
@@ -82,6 +83,7 @@
             display: flex;
             align-items: center;
             gap: 0.85rem;
+            min-width: 0;
         }
 
         .header-logo {
@@ -98,12 +100,14 @@
             font-size: 1.75rem;
             font-weight: 800;
             letter-spacing: -0.025em;
+            line-height: 1.15;
         }
 
         .header-controls {
             display: flex;
             gap: 1rem;
             align-items: center;
+            flex-shrink: 0;
         }
 
         .date-picker {
@@ -1647,7 +1651,7 @@
         <header>
             <div class="header-title">
                 <img src="logos/logo_ingrill.png" alt="Ingrill Logo" class="header-logo">
-                <h1>Reporte de Ventas</h1>
+                <h1>Panel Unificado de Canales, Mercado Libre e INVAS</h1>
             </div>
             <div class="header-controls">
                 <select id="source-select">
@@ -1704,6 +1708,7 @@
             <div class="metric-card">
                 <div class="metric-label"><i data-lucide="package-check"></i> Unds vendidas</div>
                 <div class="metric-value" id="total-units">0</div>
+                <div id="total-units-breakdown" class="channel-breakdown"></div>
             </div>
             <div class="metric-card">
                 <div class="metric-label"><i data-lucide="trending-up"></i> Ticket Promedio</div>
