@@ -2129,9 +2129,14 @@
                         <h2>Inventario Consolidado</h2>
                         <span id="inv-record-count" style="color: var(--text-secondary); font-size: 0.75rem; font-weight: 600;">Cargando inventario...</span>
                     </div>
-                    <button id="refresh-inventory-btn" class="btn-primary" style="padding: 0.4rem 1rem; font-size: 0.75rem;">
-                        <i data-lucide="refresh-cw"></i> Sincronizar Stock
-                    </button>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <button id="download-inventory-pdf-btn" class="btn-primary" style="padding: 0.4rem 1rem; font-size: 0.75rem; background: rgba(139, 93, 188, 0.15); border: 1px solid rgba(139, 93, 188, 0.3); color: #8b5dbc;">
+                            <i data-lucide="file-text"></i> Exportar PDF
+                        </button>
+                        <button id="refresh-inventory-btn" class="btn-primary" style="padding: 0.4rem 1rem; font-size: 0.75rem;">
+                            <i data-lucide="refresh-cw"></i> Sincronizar Stock
+                        </button>
+                    </div>
                 </div>
                 <div class="table-wrapper" style="max-height: 600px;">
                     <table>

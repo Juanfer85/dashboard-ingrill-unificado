@@ -92,6 +92,11 @@ document.addEventListener('DOMContentLoaded', () => {
         refreshInvBtn.addEventListener('click', fetchInventory);
     }
 
+    const downloadInvPdfBtn = document.getElementById('download-inventory-pdf-btn');
+    if (downloadInvPdfBtn) {
+        downloadInvPdfBtn.addEventListener('click', downloadInventoryPDF);
+    }
+
     const refreshInvasBtn = document.getElementById('refresh-invas-btn');
     if (refreshInvasBtn) {
         refreshInvasBtn.addEventListener('click', fetchInvasInventory);
@@ -998,6 +1003,258 @@ function renderInventory(items) {
             </tr>
         `;
     }).join('');
+}
+
+function downloadInventoryPDF() {
+    if (!window.inventoryData || window.inventoryData.length === 0) {
+        alert('No hay datos de inventario disponibles para exportar a PDF.');
+        return;
+    }
+
+    const items = window.inventoryData;
+    const now = new Date();
+    const formattedDate = now.toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+    let shopifyTotal = 0, meliLocalTotal = 0, meliFullTotal = 0, ripleyLocalTotal = 0, ripleyFullTotal = 0, sodimacTotal = 0, grandTotal = 0;
+    items.forEach(item => {
+        shopifyTotal += item.shopifyStock || 0;
+        meliLocalTotal += item.meliStock || 0;
+        meliFullTotal += item.meliFullStock || 0;
+        ripleyLocalTotal += item.ripleyStock || 0;
+        ripleyFullTotal += item.ripleyFullStock || 0;
+        sodimacTotal += item.sodimacStock || 0;
+        grandTotal += item.totalStock || 0;
+    });
+
+    const printWin = window.open('', '_blank');
+    if (!printWin) {
+        alert('Por favor permite las ventanas emergentes (popups) para generar el informe PDF.');
+        return;
+    }
+
+    const rowsHtml = items.map((item, idx) => `
+        <tr>
+            <td style="text-align: center; color: #64748b; font-size: 0.75rem;">${idx + 1}</td>
+            <td style="font-weight: 600; color: #0f172a;">${item.title}</td>
+            <td><code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.78rem; font-family: monospace;">${item.sku || 'N/A'}</code></td>
+            <td><code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.78rem; font-family: monospace; color: #475569;">${item.ean || 'N/A'}</code></td>
+            <td style="text-align: center; color: ${item.shopifyStock > 0 ? '#16a34a' : '#94a3b8'}; font-weight: ${item.shopifyStock > 0 ? '700' : '400'};">${item.shopifyStock || 0}</td>
+            <td style="text-align: center; color: ${item.meliStock > 0 ? '#ea580c' : '#94a3b8'}; font-weight: ${item.meliStock > 0 ? '700' : '400'};">${item.meliStock || 0}</td>
+            <td style="text-align: center; color: ${item.meliFullStock > 0 ? '#d97706' : '#94a3b8'}; font-weight: ${item.meliFullStock > 0 ? '700' : '400'};">${item.meliFullStock || 0}</td>
+            <td style="text-align: center; color: ${item.ripleyStock > 0 ? '#7c3aed' : '#94a3b8'}; font-weight: ${item.ripleyStock > 0 ? '700' : '400'};">${item.ripleyStock || 0}</td>
+            <td style="text-align: center; color: ${item.ripleyFullStock > 0 ? '#6d28d9' : '#94a3b8'}; font-weight: ${item.ripleyFullStock > 0 ? '700' : '400'};">${item.ripleyFullStock || 0}</td>
+            <td style="text-align: center; color: ${item.sodimacStock > 0 ? '#059669' : '#94a3b8'}; font-weight: ${item.sodimacStock > 0 ? '700' : '400'};">${item.sodimacStock || 0}</td>
+            <td style="text-align: center; font-weight: 800; color: #0f172a; background: #f8fafc;">${item.totalStock || 0}</td>
+        </tr>
+    `).join('');
+
+    const htmlContent = `<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Informe Consolidado de Inventario Multicanal - Ingrill</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        @page {
+            size: A4 landscape;
+            margin: 1cm;
+        }
+        body {
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+            color: #1e293b;
+            margin: 0;
+            padding: 1.5rem;
+            background: #ffffff;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        .header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 3px solid #ea580c;
+            padding-bottom: 1rem;
+            margin-bottom: 1.25rem;
+        }
+        .header-bar h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: #0f172a;
+            letter-spacing: -0.02em;
+        }
+        .header-bar .subtitle {
+            font-size: 0.85rem;
+            color: #64748b;
+            margin-top: 0.2rem;
+            font-weight: 600;
+        }
+        .meta-info {
+            text-align: right;
+            font-size: 0.8rem;
+            color: #475569;
+        }
+        .kpi-row {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 0.75rem;
+            margin-bottom: 1.25rem;
+        }
+        .kpi-box {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+            padding: 0.6rem 0.8rem;
+            text-align: center;
+        }
+        .kpi-box .lbl {
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #64748b;
+            letter-spacing: 0.04em;
+        }
+        .kpi-box .val {
+            font-size: 1.25rem;
+            font-weight: 800;
+            margin-top: 0.15rem;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+        }
+        th {
+            background: #f1f5f9;
+            color: #334155;
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            padding: 0.55rem 0.5rem;
+            border-bottom: 2px solid #cbd5e1;
+        }
+        td {
+            padding: 0.45rem 0.5rem;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        tr:nth-child(even) {
+            background-color: #f8fafc;
+        }
+        .footer-info {
+            margin-top: 1.25rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: #94a3b8;
+        }
+        .no-print {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            display: flex;
+            gap: 0.5rem;
+            z-index: 9999;
+        }
+        .btn-print {
+            background: #ea580c;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-weight: 700;
+            font-size: 0.85rem;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(234, 88, 12, 0.3);
+        }
+        @media print {
+            .no-print { display: none !important; }
+            body { padding: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print">
+        <button class="btn-print" onclick="window.print()">🖨️ Guardar PDF / Imprimir</button>
+    </div>
+
+    <div class="header-bar">
+        <div>
+            <h1>Informe Consolidado de Inventario Multicanal</h1>
+            <div class="subtitle">Ingrill Chile — Control de Stock Unificado</div>
+        </div>
+        <div class="meta-info">
+            <div><strong>Emisión:</strong> ${formattedDate}</div>
+            <div><strong>Total Productos:</strong> ${items.length} SKUs</div>
+        </div>
+    </div>
+
+    <div class="kpi-row">
+        <div class="kpi-box">
+            <div class="lbl">Shopify</div>
+            <div class="val" style="color: #16a34a;">${shopifyTotal}</div>
+        </div>
+        <div class="kpi-box">
+            <div class="lbl">Meli Local</div>
+            <div class="val" style="color: #ea580c;">${meliLocalTotal}</div>
+        </div>
+        <div class="kpi-box">
+            <div class="lbl">Meli Full</div>
+            <div class="val" style="color: #d97706;">${meliFullTotal}</div>
+        </div>
+        <div class="kpi-box">
+            <div class="lbl">Ripley (L / F)</div>
+            <div class="val" style="color: #7c3aed;">${ripleyLocalTotal + ripleyFullTotal}</div>
+        </div>
+        <div class="kpi-box">
+            <div class="lbl">Sodimac</div>
+            <div class="val" style="color: #059669;">${sodimacTotal}</div>
+        </div>
+        <div class="kpi-box" style="background: #fff7ed; border-color: #ffedd5;">
+            <div class="lbl" style="color: #c2410c;">Total Stock</div>
+            <div class="val" style="color: #ea580c;">${grandTotal}</div>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 3%;">#</th>
+                <th style="width: 27%; text-align: left;">Producto</th>
+                <th style="width: 12%; text-align: left;">SKU</th>
+                <th style="width: 14%; text-align: left;">SKU EAN</th>
+                <th style="width: 7%;">Shopify</th>
+                <th style="width: 7%;">Meli</th>
+                <th style="width: 7%;">Meli Full</th>
+                <th style="width: 7%;">Ripley</th>
+                <th style="width: 7%;">Ripley Full</th>
+                <th style="width: 7%;">Sodimac</th>
+                <th style="width: 8%;">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${rowsHtml}
+        </tbody>
+    </table>
+
+    <div class="footer-info">
+        <div>Documento generado automáticamente desde el Dashboard Unificado Ingrill</div>
+        <div>Control Interno de Stock</div>
+    </div>
+
+    <script>
+        window.addEventListener('load', () => {
+            setTimeout(() => { window.print(); }, 500);
+        });
+    </script>
+</body>
+</html>`;
+
+    printWin.document.open();
+    printWin.document.write(htmlContent);
+    printWin.document.close();
 }
 
 function formatMeliDate(dateStr) {
