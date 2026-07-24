@@ -177,15 +177,66 @@
             width: 100px;
         }
 
+        /* Flatpickr adaptativo para Tema Claro y Oscuro */
         .flatpickr-calendar {
             background: var(--card-bg) !important;
             border: 1px solid var(--border) !important;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4) !important;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35) !important;
+            color: var(--text-primary) !important;
+            border-radius: 0.85rem !important;
         }
-        
-        .flatpickr-day.selected {
+
+        body[data-theme="light"] .flatpickr-calendar {
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15) !important;
+        }
+
+        .flatpickr-months, 
+        .flatpickr-month, 
+        .flatpickr-current-month, 
+        .flatpickr-weekdays,
+        span.flatpickr-weekday {
+            background: var(--card-bg) !important;
+            color: var(--text-primary) !important;
+            fill: var(--text-primary) !important;
+        }
+
+        .flatpickr-current-month .flatpickr-monthDropdown-months,
+        .flatpickr-current-month .numInputWrapper input {
+            background: var(--card-bg) !important;
+            color: var(--text-primary) !important;
+        }
+
+        .flatpickr-day {
+            color: var(--text-primary) !important;
+            border-radius: 0.5rem !important;
+        }
+
+        .flatpickr-day.flatpickr-disabled, 
+        .flatpickr-day.flatpickr-disabled:hover,
+        .flatpickr-day.prevMonthDay, 
+        .flatpickr-day.nextMonthDay {
+            color: var(--text-secondary) !important;
+            opacity: 0.35;
+        }
+
+        .flatpickr-day:hover, 
+        .flatpickr-day:focus {
+            background: var(--primary-glow) !important;
+            color: var(--primary) !important;
+        }
+
+        .flatpickr-day.selected, 
+        .flatpickr-day.startRange, 
+        .flatpickr-day.endRange, 
+        .flatpickr-day.selected:hover {
             background: var(--primary) !important;
             border-color: var(--primary) !important;
+            color: #ffffff !important;
+        }
+
+        .flatpickr-months .flatpickr-prev-month svg, 
+        .flatpickr-months .flatpickr-next-month svg {
+            fill: var(--text-primary) !important;
         }
 
         .btn-icon {
