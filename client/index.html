@@ -1,11 +1,66 @@
 <!-- NEW VERSION 2026-03-20 -->
-<!-- NEW VERSION 2026-03-20 -->
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel Unificado de Canales, Mercado Libre e INVAS</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" type="text/css" href="https://npmcdn.com/flatpickr/dist/themes/dark.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://npmcdn.com/flatpickr/dist/l10n/es.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <style>
+        :root {
+            --primary: #f97316;
+            --primary-glow: rgba(249, 115, 22, 0.2);
+            --bg-dark: #0a0a0a;
+            --card-bg: #141414;
+            --text-primary: #ffffff;
+            --text-secondary: #a1a1aa;
+            --border: #27272a;
+            --accent: #fb923c;
+            --btn-bg: #18181b;
+            --btn-text: #ffffff;
+            --stock-shopify: #96bf48;
+            --stock-meli: #facc15;
+            --stock-meli-full: #fef08a;
+            --stock-ripley: #8b5dbc;
+            --stock-ripley-full: #a78bfa;
+            --stock-sodimac: #00875a;
+        }
+
+        body[data-theme="light"] {
+            --bg-dark: #f4f4f5;
+            --card-bg: #ffffff;
+            --text-primary: #18181b;
+            --text-secondary: #52525b;
+            --border: #e4e4e7;
+            --primary-glow: rgba(249, 115, 22, 0.1);
+            --btn-bg: var(--primary);
+            --btn-text: #ffffff;
+            --stock-shopify: #15803d;
+            --stock-meli: #b45309;
+            --stock-meli-full: #854d0e;
+            --stock-ripley: #6d28d9;
+            --stock-ripley-full: #7c3aed;
+            --stock-sodimac: #006644;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
             min-height: 100vh;
             padding: 1.5rem;
             line-height: 1.5;
@@ -1754,6 +1809,26 @@
             transition: all 0.2s;
         }
         #api-error-retry:hover {
+            background: rgba(249, 115, 22, 0.3);
+        }
+        #api-error-close {
+            flex-shrink: 0;
+            background: transparent;
+            border: none;
+            color: inherit;
+            cursor: pointer;
+            opacity: 0.6;
+            padding: 0.2rem;
+            line-height: 1;
+            font-size: 1rem;
+            transition: opacity 0.2s;
+        }
+        #api-error-close:hover { opacity: 1; }
+        @keyframes banner-slide-down {
+            from { transform: translateX(-50%) translateY(-24px); opacity: 0; }
+            to   { transform: translateX(-50%) translateY(0);    opacity: 1; }
+        }
+    </style>
 </head>
 <body>
     <div class="loading-overlay" id="loading">

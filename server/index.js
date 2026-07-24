@@ -278,21 +278,20 @@ function normalizeSodimacOrder(o) {
     try {
         const customer = [o.CustomerFirstName, o.CustomerLastName].filter(Boolean).join(' ') || 'Invitado Sodimac';
         const rawItems = o.OrderItems || [];
+        const totalUnits = rawItems.length;
 
         const items = rawItems.map(item => {
             const normalizedTitle = normalizeProductName(item.Name || 'Producto Sodimac');
             const codes = resolveProductCodes(normalizedTitle, item.Sku);
-            const qty = parseInt(item.Quantity || 1, 10);
             return {
                 title: normalizedTitle,
-                quantity: qty,
+                quantity: 1,
                 price: parseFloat(item.PaidPrice || item.ItemPrice || 0),
                 sku: codes.sku,
                 ean: codes.ean
             };
         });
 
-        const totalUnits = items.reduce((acc, item) => acc + item.quantity, 0);
         const sku = items[0]?.sku || 'N/A';
         const ean = items[0]?.ean || 'N/A';
 
