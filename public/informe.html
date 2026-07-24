@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <title>Informe Ejecutivo: Comparativo de Ventas Abril vs Mayo 2026</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,700&family=Roboto:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
     <style>
         :root {
             --primary: #ea580c;
@@ -17,7 +19,7 @@
         }
 
         body {
-            font-family: 'Outfit', sans-serif;
+            font-family: 'Roboto Condensed', 'Roboto', sans-serif;
             color: var(--text-main);
             background-color: #ffffff;
             margin: 0;
@@ -313,6 +315,11 @@
                 size: portrait;
                 margin: 1.5cm;
             }
+        }
+
+        /* Regla de oro para sobreescritura universal de tipografía Roboto Condensed */
+        body, input, button, select, textarea, th, td, h1, h2, h3, h4, h5, h6, label, span, p, a, div {
+            font-family: 'Roboto Condensed', 'Roboto', -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif !important;
         }
     </style>
 </head>
