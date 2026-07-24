@@ -60,6 +60,7 @@ async function getSodimacOrders(startDate, endDate) {
         console.log(`--- FETCHING SODIMAC ORDERS: ${startDate} to ${endDate} ---`);
         
         const createdAfter = dayjs(startDate).toISOString();
+        const createdBefore = dayjs(endDate).toISOString();
         
         const params = {
             Action: 'GetOrders',
@@ -67,7 +68,8 @@ async function getSodimacOrders(startDate, endDate) {
             Timestamp: new Date().toISOString(),
             UserID: SODIMAC_USER_ID,
             Version: '1.0',
-            CreatedAfter: createdAfter
+            CreatedAfter: createdAfter,
+            CreatedBefore: createdBefore
         };
 
         const { queryString, signature } = signRequest(params, SODIMAC_API_KEY);
