@@ -70,8 +70,47 @@
         }
 
         .container {
-            max-width: 1400px;
+            max-width: 100%;
+            width: 100%;
             margin: 0 auto;
+            padding: 0 0.5rem;
+        }
+
+        .quick-date-presets {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 0.75rem;
+            padding: 0.25rem;
+        }
+
+        .btn-preset {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            padding: 0.35rem 0.75rem;
+            border-radius: 0.5rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-preset:hover {
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        body[data-theme="light"] .btn-preset:hover {
+            background: rgba(0, 0, 0, 0.05);
+        }
+
+        .btn-preset.active {
+            background: var(--primary);
+            color: #ffffff !important;
+            box-shadow: 0 2px 8px var(--primary-glow);
         }
 
         header {
@@ -1870,6 +1909,12 @@
                     <option value="meli">🏷️ Mercado Libre</option>
                     <option value="sodimac">🛠️ Sodimac</option>
                 </select>
+                <div class="quick-date-presets" id="quick-date-presets">
+                    <button class="btn-preset" data-days="7">7 días</button>
+                    <button class="btn-preset" data-days="30">30 días</button>
+                    <button class="btn-preset" data-days="90">90 días</button>
+                    <button class="btn-preset active" data-range="true" id="btn-custom-range">Rango</button>
+                </div>
                 <div class="date-picker">
                     <span>Desde:</span>
                     <input type="date" id="date-start">

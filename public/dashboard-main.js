@@ -11,11 +11,25 @@ const API_BASE = '/api';
 let trendChart = null;
 let donutChart = null;
 let originChart = null;
+let fpStartInstance = null;
+let fpEndInstance = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
     initializeFilters();
     fetchData();
+
+    // Event listeners para botones de rango preseleccionado
+    document.querySelectorAll('.btn-preset').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const days = btn.getAttribute('data-days');
+            if (days) {
+                setQuickDatePreset(parseInt(days, 10));
+            } else if (btn.getAttribute('data-range')) {
+                selectCustomRangePreset();
+            }
+        });
+    });
 
     // Lógica de tema
     const themeBtn = document.getElementById('theme-toggle');
@@ -136,6 +150,49 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+function setQuickDatePreset(days) {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - (days - 1));
+
+    const formatDate = (d) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const r = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${r}`;
+    };
+
+    const startStr = formatDate(start);
+    const endStr = formatDate(end);
+
+    const startInput = document.getElementById('date-start');
+    const endInput = document.getElementById('date-end');
+
+    if (startInput) startInput.value = startStr;
+    if (endInput) endInput.value = endStr;
+
+    if (fpStartInstance && typeof fpStartInstance.setDate === 'function') fpStartInstance.setDate(startStr, false);
+    if (fpEndInstance && typeof fpEndInstance.setDate === 'function') fpEndInstance.setDate(endStr, false);
+
+    document.querySelectorAll('.btn-preset').forEach(btn => btn.classList.remove('active'));
+    const activeBtn = document.querySelector(`.btn-preset[data-days="${days}"]`);
+    if (activeBtn) activeBtn.classList.add('active');
+
+    fetchData();
+}
+
+function selectCustomRangePreset() {
+    document.querySelectorAll('.btn-preset').forEach(btn => btn.classList.remove('active'));
+    const rangeBtn = document.getElementById('btn-custom-range');
+    if (rangeBtn) rangeBtn.classList.add('active');
+
+    const startInput = document.getElementById('date-start');
+    if (startInput) {
+        startInput.focus();
+        if (fpStartInstance && typeof fpStartInstance.open === 'function') fpStartInstance.open();
+    }
+}
+
 function initializeFilters() {
     const now = new Date();
     const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -153,17 +210,28 @@ function initializeFilters() {
     if (startInput) startInput.value = formatDate(firstDay);
     if (endInput) endInput.value = formatDate(now);
 
+    const onManualDateChange = () => {
+        document.querySelectorAll('.btn-preset').forEach(btn => btn.classList.remove('active'));
+        const rangeBtn = document.getElementById('btn-custom-range');
+        if (rangeBtn) rangeBtn.classList.add('active');
+        fetchData();
+    };
+
     if (typeof flatpickr !== 'undefined') {
         const fpConfig = {
             locale: 'es',
             dateFormat: 'Y-m-d',
-            onChange: fetchData,
+            onChange: onManualDateChange,
             disableMobile: "true"
         };
-        flatpickr("#date-start", fpConfig);
-        flatpickr("#date-end", fpConfig);
+        const resStart = flatpickr("#date-start", fpConfig);
+        const resEnd = flatpickr("#date-end", fpConfig);
+        fpStartInstance = Array.isArray(resStart) ? resStart[0] : resStart;
+        fpEndInstance = Array.isArray(resEnd) ? resEnd[0] : resEnd;
     } else {
         console.warn("Flatpickr is not loaded, using native HTML5 date inputs instead.");
+        if (startInput) startInput.addEventListener('change', onManualDateChange);
+        if (endInput) endInput.addEventListener('change', onManualDateChange);
     }
 }
 
